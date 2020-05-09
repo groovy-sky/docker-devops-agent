@@ -1,0 +1,97 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "String",
+            "defaultValue": "[resourceGroup().location]"
+        },
+        "containerName": {
+            "type": "String"
+        },
+        "imageName": {
+            "type": "String"
+        },
+        "osType": {
+            "allowedValues": [
+                "Linux",
+                "Windows"
+            ],
+            "type": "String",
+            "defaultValue":"Linux"
+        },
+        "numberCpuCores": {
+            "type": "String",
+            "allowedValues":["1","2","3","4"],
+            "defaultValue": "1"
+        },
+        "memory": {
+            "type": "String",
+            "defaultValue": "1.5"
+        },
+        "restartPolicy": {
+            "allowedValues": [
+                "OnFailure",
+                "Always",
+                "Never"
+            ],
+            "type": "String",
+            "defaultValue":"OnFailure"
+        },
+        "AZP_URL": {
+            "type": "string"
+        },
+        "AZP_TOKEN": {
+            "type": "securestring"
+        },
+        "AZP_POOL": {
+            "type": "string",
+            "defaultValue": "Default"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ContainerInstance/containerGroups",
+            "apiVersion": "2018-10-01",
+            "name": "[parameters('containerName')]",
+            "location": "[parameters('location')]",
+            "tags": {},
+            "properties": {
+                "containers": [
+                    {
+                        "name": "[parameters('containerName')]",
+                        "properties": {
+                            "image": "[parameters('imageName')]",
+                            "resources": {
+                                "requests": {
+                                    "cpu": "[int(parameters('numberCpuCores'))]",
+                                    "memoryInGB": "[float(parameters('memory'))]"
+                                }
+                            },
+                            "environmentVariables": [
+                {
+                    "name": "AZP_URL",
+                    "value": "[parameters('AZP_URL')]"
+                },
+                {
+                    "name": "AZP_TOKEN",
+                    "value": "[parameters('AZP_TOKEN')]"
+                },
+                {
+                    "name": "AZP_AGENT_NAME",
+                    "value": "[parameters('containerName')]"
+                },
+                {
+                    "name": "AZP_POOL",
+                    "value": "[parameters('AZP_POOL')]"
+                }
+            ]
+                        }
+                    }
+                ],
+                "restartPolicy": "[parameters('restartPolicy')]",
+                "osType": "[parameters('osType')]"
+            }
+        }
+    ]
+}
