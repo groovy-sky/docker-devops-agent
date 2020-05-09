@@ -13,17 +13,8 @@ jobs:
     # The type of agent that the job will run on
     pool: 'Default'
 
-    # Container agent's Docker image name
-    container: gr00vysky/iac-demo:latest
-
     # Steps represent a sequence of tasks that will be executed
     steps:
 
-    - bash: ansible-playbook /opt/automation/ansible/main.yml -e "azure_group_name=$(group_name) nginx_default_msg=$(nginx_default_msg)"
-      displayName: 'Run main.yml Playbook'
-      env:
-        ANSIBLE_HOST_KEY_CHECKING: False
-        AZURE_CLIENT_ID: $(client_id)
-        AZURE_SECRET: $(secret)
-        AZURE_SUBSCRIPTION_ID: $(subscription_id)
-        AZURE_TENANT: $(tenant)
+    - bash: uname -a
+      displayName: 'test step'
