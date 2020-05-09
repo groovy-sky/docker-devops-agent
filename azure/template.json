@@ -27,7 +27,7 @@
         },
         "memory": {
             "type": "String",
-            "defaultValue": "1.5"
+            "defaultValue": "2.5"
         },
         "restartPolicy": {
             "allowedValues": [
