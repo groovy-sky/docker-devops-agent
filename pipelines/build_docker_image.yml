@@ -1,0 +1,29 @@
+name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
+
+pool:
+  vmImage: 'Ubuntu 18.04'
+
+trigger: none
+
+schedules:
+- cron: "0 0 * * *"
+  displayName: Daily midnight build
+
+variables:
+  imageName: 'devops-agent'
+  imageversion: 'latest'
+  registryLogin: 'gr00vysky'
+  # define registryPassword secret variable in the build pipeline using UI
+
+steps:
+- bash: docker build -f $(system.defaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) --build-arg ANSIBLE_VERSION=$(imageversion) $(system.defaultWorkingDirectory)
+  displayName: 'docker build'
+
+- bash: docker login -u $(registryLogin) -p $(registryPassword) 
+  displayName: 'docker login'
+  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/master'))
+
+- bash: |
+    docker push $(registryLogin)/$(imageName):$(imageversion)
+  displayName: 'docker push'
+  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/master'))
