@@ -20,7 +20,7 @@ RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security ma
 
 WORKDIR /azp
 
-COPY ./start.sh .
+COPY ./docker/start.sh .
 RUN chmod +x start.sh
 
 CMD ["./start.sh"]
