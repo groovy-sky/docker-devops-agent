@@ -7,13 +7,13 @@ RUN apt-get update && apt-get install software-properties-common
 
 RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main" \
 && apt-get update \
-&& apt-get install -y --no-install-recommends \
+&& apt-get install -y \
         ca-certificates \
         curl \
         jq \
         git \
         iputils-ping \
-        libcurl3 \
+        libcurl4 \
         libicu55 \
         libunwind8 \
         netcat
