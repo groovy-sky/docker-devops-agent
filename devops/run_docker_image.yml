@@ -11,7 +11,7 @@ jobs:
   - job: "Demo_Job"
 
     # The type of agent that the job will run on
-    pool: 'agent'
+    pool: 'Default'
 
     # Container agent's Docker image name
     container: gr00vysky/iac-demo:latest
