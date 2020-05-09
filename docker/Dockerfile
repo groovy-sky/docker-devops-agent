@@ -3,6 +3,8 @@ FROM ubuntu:18.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
+RUN apt-get update && apt-get install software-properties-common
+
 RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main" \
 && apt-get update \
 && apt-get install -y --no-install-recommends \
@@ -14,7 +16,7 @@ RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security ma
         libcurl3 \
         libicu55 \
         libunwind8 \
-        netcat \
+        netcat
 
 WORKDIR /azp
 
