@@ -3,7 +3,8 @@ FROM ubuntu:18.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
-RUN apt-get update \
+RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main" \
+&& apt-get update \
 && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -14,9 +15,6 @@ RUN apt-get update \
         libicu55 \
         libunwind8 \
         netcat \
-        nodejs
-
-LABEL "com.azure.dev.pipelines.agent.handler.node.path"="/usr/bin/node"
 
 WORKDIR /azp
 
