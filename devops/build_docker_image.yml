@@ -3,7 +3,15 @@ name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
 pool:
   vmImage: 'Ubuntu 18.04'
 
-trigger: none
+trigger:
+  batch: true
+  branches:
+    include:
+    - master
+  paths:
+    include:
+    - /devops/build_docker_image.yml
+    - /docker/*
 
 schedules:
 - cron: "0 0 * * *"
