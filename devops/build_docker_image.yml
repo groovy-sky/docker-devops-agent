@@ -21,10 +21,8 @@ schedules:
     - master
 
 variables:
-  imageName: 'devops-agent'
   imageversion: 'latest'
-  registryLogin: 'gr00vysky'
-  # define registryPassword secret variable in the build pipeline using UI
+  # define imageName, registryLogin, registryPassword variables in the build pipeline using UI
 
 steps:
 - bash: docker build -f $(system.defaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) --build-arg ANSIBLE_VERSION=$(imageversion) $(system.defaultWorkingDirectory)
