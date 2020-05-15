@@ -75,7 +75,7 @@
                 },
                 {
                     "name": "AZP_TOKEN",
-                    "value": "[parameters('AZP_TOKEN')]"
+                    "secureValue": "[parameters('AZP_TOKEN')]"
                 },
                 {
                     "name": "AZP_AGENT_NAME",

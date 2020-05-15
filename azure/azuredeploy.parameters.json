@@ -1,0 +1,23 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "containerName": {
+        "value": "azure-docker-agent-00"
+      },
+      "imageName": {
+        "value": "gr00vysky/devops-agent:latest"
+      },
+      "AZP_URL": {
+        "value": "https://dev.azure.com/Infrastructure-as-C0de"
+      },
+      "AZP_TOKEN": {
+        "reference": {
+            "keyVault": {
+                "id": "/subscriptions/4d87056b-7754-4b7f-b715-d3768349ef58/resourceGroups/demo-vault/providers/Microsoft.KeyVault/vaults/devops-secret-value"
+            },
+            "secretName": "devops-token"
+          }
+      }
+    }
+  }
