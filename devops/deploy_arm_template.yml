@@ -18,6 +18,10 @@ variables:
 
 steps:
 - bash: |
+    $(dockerFirstPart) -e RESOURCE_GROUP=$(RESOURCE_GROUP) -e METHOD="GET" -e RESOURCE_API="2018-10-01" -e RESOURCE_TYPE="ContainerInstance/containerGroups" -e -i $(imageName)
+  displayName: 'get a list of Container Instances'
+
+- bash: |
     $(dockerFirstPart) -e RESOURCE_GROUP=$(RESOURCE_GROUP) -e METHOD="DELETE" -e RESOURCE_API="2018-10-01" -e RESOURCE_TYPE="ContainerInstance/containerGroups" -e RESOURCE_NAME="azure-docker-agent-00" -i $(imageName)
   displayName: 'delete Container Instance'
 
@@ -27,7 +31,7 @@ steps:
 
 - bash: | 
     $(dockerFirstPart) -e RESOURCE_GROUP=$(RESOURCE_GROUP) -e TEMPLATE_URI=$(TEMPLATE_URI) -e PARAMETERS_URI=$(PARAMETERS_URI) -e METHOD="ARM" -e RESOURCE_API="2019-10-01" -e RESOURCE_TYPE="Resources/deployments" -i $(imageName)
-  displayName: 'create'
+  displayName: 'create Container Instance'
 
 - bash: |
     $(dockerFirstPart) -e RESOURCE_GROUP=$(RESOURCE_GROUP) -e METHOD="POST" -e RESOURCE_API="2018-10-01" -e RESOURCE_TYPE="ContainerInstance/containerGroups" -e RESOURCE_NAME="azure-docker-agent-00" -e APPEND_PARAM="/restart" -i $(imageName)
