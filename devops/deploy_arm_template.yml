@@ -18,4 +18,4 @@ variables:
   imageversion: 'latest'
 
 steps:
-- bash: printenv
+- bash: /script.sh
