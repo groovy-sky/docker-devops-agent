@@ -1,9 +1,7 @@
 name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
 
 pool:
-  vmImage: 'ubuntu-16.04'
-
-container: gr00vysky/docker-arm-api:latest
+  vmImage: 'Ubuntu 18.04'
 
 trigger: none
 
@@ -14,5 +12,8 @@ schedules:
     include:
     - master
 
+variables:
+  imageversion: 'latest'
+
 steps:
-- script: printenv
+- bash: printenv
