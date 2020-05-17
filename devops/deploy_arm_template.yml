@@ -18,7 +18,7 @@ variables:
 
 steps:
 - bash: | 
-    $dockerCommand -e TEMPLATE_URI=$(TEMPLATE_URI) -e PARAMETERS_URI=$(PARAMETERS_URI) -e METHOD="ARM" -e RESOURCE_API="2019-10-01" -e RESOURCE_TYPE="Resources/deployments" -i $(imageName)
+    $(dockerCommand) -e TEMPLATE_URI=$(TEMPLATE_URI) -e PARAMETERS_URI=$(PARAMETERS_URI) -e METHOD="ARM" -e RESOURCE_API="2019-10-01" -e RESOURCE_TYPE="Resources/deployments" -i $(imageName)
   displayName: 'deploy ARM template'
 
 - bash: docker run -e APP_ID=$(APP_ID) -e APP_KEY=$(APP_KEY) -e TENANT_ID=$(TENANT_ID) -e SUBSCRIPTION_ID=$(SUBSCRIPTION_ID) -e RESOURCE_GROUP=$(RESOURCE_GROUP) -e METHOD="POST" -e RESOURCE_API="2018-10-01" -e RESOURCE_TYPE="ContainerInstance/containerGroups" -e RESOURCE_NAME="azure-docker-agent-00" -e APPEND_PARAM="/restart" -i gr00vysky/docker-arm-api:latest
