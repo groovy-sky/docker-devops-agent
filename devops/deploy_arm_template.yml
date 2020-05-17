@@ -3,6 +3,8 @@ name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
 pool:
   vmImage: 'Ubuntu 18.04'
 
+container: gr00vysky/docker-arm-api:latest
+
 trigger: none
 
 schedules:
