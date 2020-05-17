@@ -15,4 +15,4 @@ schedules:
     - master
 
 steps:
-- script: /start.sh
+- script: printenv
