@@ -1,7 +1,7 @@
 name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
 
 pool:
-  vmImage: 'Ubuntu 18.04'
+  vmImage: 'Ubuntu 20.04'
 
 trigger:
   batch: true
@@ -25,12 +25,12 @@ variables:
   # define imageName, registryLogin, registryPassword variables in the build pipeline using UI
 
 steps:
-- bash: docker build -f $(system.defaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) --build-arg ANSIBLE_VERSION=$(imageversion) $(system.defaultWorkingDirectory)
+
+- bash: docker pull ghcr.io/groovy-sky/ubuntu:focal; docker tag ghcr.io/groovy-sky/ubuntu:focal ubuntu:focal; docker build -f $(system.defaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) --build-arg ANSIBLE_VERSION=$(imageversion) $(system.defaultWorkingDirectory)
   displayName: 'docker build'
 
-- bash: docker login -u $(registryLogin) -p $(registryPassword) 
-  displayName: 'docker login'
-  condition: and(succeeded(), eq(variables['build.sourceBranch'], 'refs/heads/master'))
+- bash: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+  displayName: 'login to github registry'
 
 - bash: |
     docker push $(registryLogin)/$(imageName):$(imageversion)
