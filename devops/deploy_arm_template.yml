@@ -1,7 +1,7 @@
 name: $(BuildDefinitionName)_[$(Date:ddMMyyyy)]
 
 pool:
-  vmImage: 'Ubuntu 18.04'
+  vmImage: 'Ubuntu 20.04'
 
 trigger: none
 
