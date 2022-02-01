@@ -11,7 +11,8 @@ schedules:
   branches:
     include:
     - master
-
+  always: true
+  
 variables:
   imageName: 'gr00vysky/docker-arm-api:latest'
   dockerFirstPart: docker run -e APP_ID=$(APP_ID) -e APP_KEY=$(APP_KEY) -e TENANT_ID=$(TENANT_ID) -e SUBSCRIPTION_ID=$(SUBSCRIPTION_ID)
