@@ -17,6 +17,10 @@ spec:
     spec:
       containers:
         - name: devops-agent
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
           imagePullPolicy: Always
           image: gr00vysky/devops-agent:latest
           env:
