@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-agent
+  labels:
+    app: devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devops
+  template:
+    metadata:
+      labels:
+        app: devops
+      name: devops-agent
+    spec:
+      containers:
+        - name: devops-agent
+          imagePullPolicy: Always
+          image: gr00vysky/devops-agent:latest
+          env:
+            - name: AZP_URL
+              value: "https://dev.azure.com/3ap9lq"
+            - name: AZP_AGENT_NAME
+              value: "devops-agent"
+            - name: AZP_POOL
+              value: "aks-pool"
+            - name: AZP_TOKEN
+              valueFrom: 
+                secretKeyRef:
+                  key: AZP_TOKEN
+                  name: devops-secrets

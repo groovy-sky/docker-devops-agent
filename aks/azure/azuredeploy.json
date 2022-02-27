@@ -1,0 +1,88 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "aksClusterName": {
+            "type": "string",
+            "defaultValue": "build-agents-aks"
+        },
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "string"
+        },
+        "osDiskSizeGB": {
+            "type": "int",
+            "defaultValue": 100,
+            "minValue": 0,
+            "maxValue": 1023
+        },
+        "agentCount": {
+            "type": "int",
+            "defaultValue": 1,
+            "minValue": 1,
+            "maxValue": 100
+        },
+        "agentVMSize": {
+            "type": "string",
+            "defaultValue": "Standard_B2s"
+        },
+                "aksClusterSkuTier": {
+            "type": "string",
+            "defaultValue": "Free",
+            "allowedValues": [
+                "Paid",
+                "Free"
+            ]
+            },
+        "osType": {
+            "type": "string",
+            "defaultValue": "Linux",
+            "allowedValues": [
+                "Linux",
+                "Windows"
+            ]
+        }
+    },
+    "variables": {
+        "aksClusterDnsPrefix":"[concat('aks-',uniquestring(subscription().subscriptionId,resourceGroup().id))]"
+    },
+    "resources": [
+
+        {
+            "apiVersion": "2020-07-01",
+            "type": "Microsoft.ContainerService/managedClusters",
+            "location": "[parameters('location')]",
+            "name": "[parameters('aksClusterName')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "enableRBAC": true,
+                "dnsPrefix": "[variables('aksClusterDnsPrefix')]",
+                        "sku": {
+                            "name": "Basic",
+                            "tier": "[parameters('aksClusterSkuTier')]"
+                            },
+                "agentPoolProfiles": [
+                    {
+                        "name": "agentpool",
+                        "osDiskSizeGB": "[parameters('osDiskSizeGB')]",
+                        "count": "[parameters('agentCount')]",
+                        "vmSize": "[parameters('agentVMSize')]",
+                        "osType": "[parameters('osType')]",
+                        "storageProfile": "Ephemeral",
+                        "type": "VirtualMachineScaleSets",
+                        "mode": "System"
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {
+        "controlPlaneFQDN": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.ContainerService/managedClusters/', parameters('aksClusterName'))).fqdn]"
+        }
+    }
+}
+
