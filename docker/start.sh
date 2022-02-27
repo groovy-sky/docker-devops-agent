@@ -12,7 +12,6 @@ if [ -z "$AZP_TOKEN_FILE" ]; then
     exit 1
   fi
 
-  AZP_TOKEN_FILE=/azp/.token
   echo -n $AZP_TOKEN > "$AZP_TOKEN_FILE"
 fi
 

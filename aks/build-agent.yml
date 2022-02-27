@@ -22,7 +22,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 65534
           imagePullPolicy: Always
-          image: gr00vysky/devops-agent:latest
+          image: ghcr.io/groovy-sky/devops-build-agent:latest
           env:
             - name: AZP_URL
               value: "https://dev.azure.com/3ap9lq"
