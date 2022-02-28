@@ -22,7 +22,10 @@ spec:
             runAsNonRoot: true
             runAsUser: 65534
           imagePullPolicy: Always
-          image: ghcr.io/groovy-sky/devops-build-agent:latest
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp-volume
+          image: gr00vysky/devops-build-agent:latest
           env:
             - name: AZP_URL
               value: "https://dev.azure.com/3ap9lq"
@@ -35,3 +38,6 @@ spec:
                 secretKeyRef:
                   key: AZP_TOKEN
                   name: devops-secrets
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
