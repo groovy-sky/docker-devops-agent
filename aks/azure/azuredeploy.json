@@ -73,7 +73,7 @@
                         "storageProfile": "Managed",
                         "type": "VirtualMachineScaleSets",
                         "mode": "System",
-                        "kubeletDiskType": "Temporary"
+                        "kubeletDiskType": "OS"
                     }
                 ]
             }
