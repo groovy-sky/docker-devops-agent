@@ -1,9 +1,7 @@
 #!/bin/bash
 set -e
 
-cd ..
-export AZP_PATH=$(pwd)
-export AZP_TOKEN_FILE=$AZP_PATH/.token
+cd $AZP_PATH
 
 if [ -z "$AZP_URL" ]; then
   echo 1>&2 "error: missing AZP_URL environment variable"

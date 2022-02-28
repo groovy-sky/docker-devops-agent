@@ -23,8 +23,8 @@ spec:
             runAsUser: 65534
           imagePullPolicy: Always
           volumeMounts:
-            - mountPath: /tmp
-              name: tmp-volume
+            - mountPath: /azp
+              name: azp-volume
           image: ghcr.io/groovy-sky/devops-build-agent:latest
           env:
             - name: AZP_URL
@@ -39,5 +39,7 @@ spec:
                   key: AZP_TOKEN
                   name: devops-secrets
       volumes:
-      - name: tmp-volume
-        emptyDir: {}
+      - name: azp-volume
+        hostPath: 
+          path: /mnt
+          type: Directory
