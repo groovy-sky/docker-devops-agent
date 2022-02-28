@@ -70,7 +70,7 @@
                         "count": "[parameters('agentCount')]",
                         "vmSize": "[parameters('agentVMSize')]",
                         "osType": "[parameters('osType')]",
-                        "storageProfile": "Ephemeral",
+                        "storageProfile": "Managed",
                         "type": "VirtualMachineScaleSets",
                         "mode": "System",
                         "kubeletDiskType": "Temporary"
