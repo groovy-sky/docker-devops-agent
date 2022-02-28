@@ -72,7 +72,8 @@
                         "osType": "[parameters('osType')]",
                         "storageProfile": "Ephemeral",
                         "type": "VirtualMachineScaleSets",
-                        "mode": "System"
+                        "mode": "System",
+                        "kubeletDiskType": "Temporary"
                     }
                 ]
             }
