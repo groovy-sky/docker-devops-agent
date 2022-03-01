@@ -31,4 +31,4 @@ RUN apt-get update && apt-get install software-properties-common && add-apt-repo
 
 USER nobody
 
-
+ENTRYPOINT ["./start.sh"]
