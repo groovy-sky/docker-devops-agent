@@ -12,7 +12,7 @@
         },
         "osDiskSizeGB": {
             "type": "int",
-            "defaultValue": 100,
+            "defaultValue": 30,
             "minValue": 0,
             "maxValue": 1023
         },
@@ -32,6 +32,14 @@
             "allowedValues": [
                 "Paid",
                 "Free"
+            ]
+            },
+            "storageProfile": {
+            "type": "string",
+            "defaultValue": "Ephemeral",
+            "allowedValues": [
+                "Ephemeral",
+                "Managed"
             ]
             },
         "osType": {
@@ -70,7 +78,7 @@
                         "count": "[parameters('agentCount')]",
                         "vmSize": "[parameters('agentVMSize')]",
                         "osType": "[parameters('osType')]",
-                        "storageProfile": "Managed",
+                        "storageProfile": "[parameters('storageProfile')]",
                         "type": "VirtualMachineScaleSets",
                         "mode": "System",
                         "kubeletDiskType": "OS"
