@@ -15,24 +15,15 @@ spec:
         app: devops
       name: devops-agent
     spec:
-      initContainers:
-        - name: volume-mount-permission-fix
-          securityContext:
-            readOnlyRootFilesystem: true
-          imagePullPolicy: Always
-          command: ["sh", "-c", "chown -R 65534:65534 /tmp && chown -R 65534:65534 /azp"]
-          volumeMounts:
-            - mountPath: /tmp
-              name: tmp-volume
-            - mountPath: /azp
-              name: azp-volume
-          image: busybox
+      securityContext:
+        fsGroup: 65534
       containers:
         - name: devops-agent
           securityContext:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 65534
+            runAsGroup: 65534
           imagePullPolicy: Always
           volumeMounts:
             - mountPath: /tmp
