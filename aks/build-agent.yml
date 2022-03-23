@@ -23,14 +23,14 @@ spec:
             runAsNonRoot: true
             runAsUser: 65534
             runAsGroup: 65534
-      - name: volume-mount-hack
-        image: busybox
-        command: ["sh", "-c", "chown -R 65534:65534 /tmp && chown -R 65534:65534 /azp"]
-          volumeMounts:
-            - mountPath: /tmp
-              name: tmp-volume
-            - mountPath: /azp
-              name: azp-volume
+        - name: volume-mount-hack
+          image: busybox
+          command: ["sh", "-c", "chown -R 65534:65534 /tmp && chown -R 65534:65534 /azp"]
+            volumeMounts:
+              - mountPath: /tmp
+                name: tmp-volume
+              - mountPath: /azp
+                name: azp-volume
       containers:
         - name: devops-agent
           securityContext:
