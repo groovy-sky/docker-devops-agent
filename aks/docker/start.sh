@@ -66,6 +66,8 @@ id
 
 curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar --same-owner -xz & wait $!
 
+chmod -R 770 .
+
 source ./env.sh
 
 print_header "3. Configuring Azure Pipelines agent..."
