@@ -5,6 +5,7 @@ ENV TARGETARCH=linux-x64
 
 ENV AZP_PATH=/azp
 ENV TMPDIR=/tmp
+ENV AZP_TOKEN_FILE=$AZP_PATH/.token
 
 COPY ./start.sh .
 
