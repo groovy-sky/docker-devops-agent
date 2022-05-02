@@ -7,6 +7,12 @@ ENV AZP_PATH=/azp
 ENV TMPDIR=/tmp
 ENV AZP_TOKEN_FILE=$AZP_PATH/.token
 
+ARG UNAME=devops
+ARG UID=1100
+ARG GID=1100
+RUN groupadd -g $GID -o $UNAME
+RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
+
 COPY ./start.sh .
 
 RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
@@ -26,7 +32,7 @@ RUN apt-get update && apt-get install software-properties-common && add-apt-repo
     && curl -LsS https://aka.ms/InstallAzureCLIDeb | bash \
     && rm -rf /var/lib/apt/lists/* \
     && chmod a+x start.sh
-
-USER nobody
+    
+USER $UNAME
 
 ENTRYPOINT ["./start.sh"]
