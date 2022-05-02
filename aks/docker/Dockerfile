@@ -8,7 +8,7 @@ ENV TMPDIR=/tmp
 
 COPY ./start.sh .
 
-RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes && chmod -R g+wX $INIT_PATH && chown nobody:nogroup -R $INIT_PATH
+RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
 RUN apt-get update && apt-get install software-properties-common && add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"\
     && apt-get update &&  apt-get install -y \
