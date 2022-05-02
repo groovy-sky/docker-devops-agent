@@ -32,6 +32,8 @@ spec:
               name: azp-volume
           image: ghcr.io/groovy-sky/devops-build-agent:latest
           env:
+            - name: TMPDIR
+              value: /tmp
             - name: AZP_URL
               value: "https://dev.azure.com/3ap9lq"
             - name: AZP_AGENT_NAME
