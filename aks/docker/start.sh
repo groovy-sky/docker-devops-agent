@@ -62,8 +62,6 @@ fi
 
 print_header "2. Downloading and extracting Azure Pipelines agent..."
 
-chmod -R 770 .
-
 curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar --same-owner -xz & wait $!
 
 source ./env.sh
