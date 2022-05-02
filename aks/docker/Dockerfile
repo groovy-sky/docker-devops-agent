@@ -3,12 +3,8 @@ FROM ubuntu:focal
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TARGETARCH=linux-x64
 
-ENV INIT_PATH=/initial
 ENV AZP_PATH=/azp
 ENV TMPDIR=/tmp
-ENV AZP_TOKEN_FILE=$AZP_PATH/.token
-
-WORKDIR $INIT_PATH
 
 COPY ./start.sh .
 
