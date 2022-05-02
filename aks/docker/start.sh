@@ -62,7 +62,7 @@ fi
 
 print_header "2. Downloading and extracting Azure Pipelines agent..."
 
-curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar --no-same-owner -xz & wait $!
+curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar -xz --owner=65534 --group=65534 & wait $!
 
 source ./env.sh
 
