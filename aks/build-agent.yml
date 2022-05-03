@@ -29,12 +29,12 @@ spec:
             runAsGroup: 1100
           imagePullPolicy: Always
           volumeMounts:
-            - mountPath: /tmp
+            - mountPath: /temp
               name: tmp-volume
             - mountPath: /azp
               name: azp-volume
           image: ghcr.io/groovy-sky/devops-build-agent:latest
-          command: ['sh', '-c', 'cp start.sh /tmp/ && cd /tmp && ./start.sh']
+          command: ['sh', '-c', 'cp start.sh /temp/ && cd /temp && ./start.sh']
           env:
             - name: TMPDIR
               value: /tmp
