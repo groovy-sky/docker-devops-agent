@@ -16,7 +16,7 @@ spec:
       name: devops-agent
     spec:
       securityContext:
-        fsGroup: 65534
+        fsGroup: 1100
       containers:
         - name: devops-agent
           securityContext:
