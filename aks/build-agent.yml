@@ -15,12 +15,15 @@ spec:
         app: devops
       name: devops-agent
     spec:
+      hostPID: false
+      hostIPC: false
       securityContext:
         fsGroup: 1100
       containers:
         - name: devops-agent
           securityContext:
             readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
             runAsNonRoot: true
             runAsUser: 1100
             runAsGroup: 1100
