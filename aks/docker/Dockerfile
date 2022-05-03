@@ -15,7 +15,7 @@ RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 
 COPY ./start.sh .
 
-RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
+RUN mkdir $TMPDIR && echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
 RUN apt-get update && apt-get install software-properties-common && add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"\
     && apt-get update &&  apt-get install -y \
