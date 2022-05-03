@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TARGETARCH=linux-x64
 
 ENV AZP_PATH=/azp
-ENV TMPDIR=/tmp
+ENV TMPDIR=/temp
 ENV AZP_TOKEN_FILE=$AZP_PATH/.token
 
 ARG UNAME=devops
