@@ -4,7 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TARGETARCH=linux-x64
 
 ENV AZP_PATH=/azp
-ENV TMPDIR=/temp
 ENV AZP_TOKEN_FILE=$AZP_PATH/.token
 
 ARG UNAME=devops
@@ -15,7 +14,7 @@ RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 
 COPY ./start.sh .
 
-RUN mkdir $TMPDIR && echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
+RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
 RUN apt-get update && apt-get install software-properties-common && add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"\
     && apt-get update &&  apt-get install -y \
