@@ -37,7 +37,7 @@ spec:
           command: ['sh', '-c', 'cp start.sh /temp/ && cd /temp && ./start.sh']
           env:
             - name: TMPDIR
-              value: /tmp
+              value: /temp
             - name: AZP_URL
               value: "https://dev.azure.com/3ap9lq"
             - name: AZP_AGENT_NAME
