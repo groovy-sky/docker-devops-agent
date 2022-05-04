@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dockeragent
+  name: devops-agent
   labels:
-    app: dockeragent
+    app: devops-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: dockeragent
+      app: devops-agent
   template:
     metadata:
       labels:
-        app: dockeragent
+        app: devops-agent
     spec:
       hostPID: false
       hostIPC: false
@@ -21,7 +21,7 @@ spec:
       containers:
       - image: ghcr.io/groovy-sky/devops-build-agent:latest
         imagePullPolicy: Always
-        name: dockeragent
+        name: devops-agent
         command: ['sh', '-c', 'cp ./start.sh ./agent/ && cd ./agent && ./start.sh']
         env:
           - name: AZP_URL
