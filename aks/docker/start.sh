@@ -1,25 +1,28 @@
 #!/bin/bash
 set -e
 
-cd $AZP_PATH
-
 if [ -z "$AZP_URL" ]; then
   echo 1>&2 "error: missing AZP_URL environment variable"
   exit 1
 fi
 
-if [ -z "$AZP_TOKEN" ]; then
-  echo 1>&2 "error: missing AZP_TOKEN environment variable"
-  exit 1
-fi
+if [ -z "$AZP_TOKEN_FILE" ]; then
+  if [ -z "$AZP_TOKEN" ]; then
+    echo 1>&2 "error: missing AZP_TOKEN environment variable"
+    exit 1
+  fi
 
-echo -n $AZP_TOKEN > "$AZP_TOKEN_FILE"
+  AZP_TOKEN_FILE=./token
+  echo -n $AZP_TOKEN > "$AZP_TOKEN_FILE"
+fi
 
 unset AZP_TOKEN
 
 if [ -n "$AZP_WORK" ]; then
   mkdir -p "$AZP_WORK"
 fi
+
+export AGENT_ALLOW_RUNASROOT="0"
 
 cleanup() {
   if [ -e config.sh ]; then
@@ -62,7 +65,7 @@ fi
 
 print_header "2. Downloading and extracting Azure Pipelines agent..."
 
-curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar -xz & wait $!
+curl -LsS $AZP_AGENT_PACKAGE_LATEST_URL | tar -xz --no-overwrite-dir & wait $!
 
 source ./env.sh
 

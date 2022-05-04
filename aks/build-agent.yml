@@ -1,56 +1,66 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: devops-agent
+  name: dockeragent
   labels:
-    app: devops
+    app: dockeragent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: devops
+      app: dockeragent
   template:
     metadata:
       labels:
-        app: devops
-      name: devops-agent
+        app: dockeragent
     spec:
       hostPID: false
       hostIPC: false
       securityContext:
-        fsGroup: 1100
+        fsGroup: 5000
       containers:
-        - name: devops-agent
-          securityContext:
-            readOnlyRootFilesystem: true
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 1100
-            runAsGroup: 1100
-          imagePullPolicy: Always
-          volumeMounts:
-            - mountPath: /temp
-              name: tmp-volume
-            - mountPath: /azp
-              name: azp-volume
-          image: ghcr.io/groovy-sky/devops-build-agent:latest
-          command: ['sh', '-c', 'cp start.sh /temp/ && cd /temp && ./start.sh']
-          env:
-            - name: TMPDIR
-              value: /temp
-            - name: AZP_URL
-              value: "https://dev.azure.com/3ap9lq"
-            - name: AZP_AGENT_NAME
-              value: "devops-agent"
-            - name: AZP_POOL
-              value: "aks-pool"
-            - name: AZP_TOKEN
-              valueFrom: 
-                secretKeyRef:
-                  key: AZP_TOKEN
-                  name: devops-secrets
+      - image: ghcr.io/groovy-sky/devops-build-agent:latest
+        imagePullPolicy: Always
+        name: dockeragent
+        command: ['sh', '-c', 'cp ./start.sh ./agent/ && cd ./agent && ./start.sh']
+        env:
+          - name: AZP_URL
+            value: "https://dev.azure.com/3ap9lq"
+          - name: AZP_AGENT_NAME
+            value: "devops-agent"
+          - name: AZP_POOL
+            value: "aks-pool"
+          - name: AZP_TOKEN
+            valueFrom: 
+              secretKeyRef:
+                key: AZP_TOKEN
+                name: devops-secrets
+          - name: TMPDIR
+            value: /temp
+        volumeMounts:
+        - mountPath: /agent
+          name: agent-volume
+        - mountPath: /temp
+          name: temp-volume
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+          requests:
+            memory: "100Mi"
+            cpu: "100m"
+        securityContext:
+          capabilities:
+            drop:
+              - all
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 5000
+          runAsGroup: 5000
       volumes:
-      - name: azp-volume
+      - name: temp-volume
         emptyDir: {}
-      - name: tmp-volume
+      - name: agent-volume
         emptyDir: {}
