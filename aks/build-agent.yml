@@ -31,7 +31,7 @@ spec:
             - mountPath: /azp
               name: azp-volume
           image: ghcr.io/groovy-sky/devops-build-agent:latest
-          command: ['sh', '-c', 'cp ./start.sh $TMPDIR/ && echo $TMPDIR && cd $TMPDIR && /.start.sh']
+          command: ['sh', '-c', 'cp ./start.sh $TMPDIR/ && cd $TMPDIR && echo /.start.sh']
           env:
             - name: TMPDIR
               value: /tmp
