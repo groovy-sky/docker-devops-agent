@@ -1,26 +1,23 @@
-FROM ubuntu:focal
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
 
-RUN apt-get update && apt-get install software-properties-common
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      jq \
+      libicu74 \
+      gnupg \
+      lsb-release && \
+    curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main" \
-&& apt-get update \
-&& apt-get install -y \
-        ca-certificates \
-        curl \
-        jq \
-        git \
-        iputils-ping \
-        libcurl4 \
-        libicu55 \
-        libunwind8 \
-        netcat
+WORKDIR /azp/
 
-WORKDIR /azp
+COPY ./start.sh ./
+RUN chmod +x ./start.sh
 
-COPY ./docker/start.sh .
-RUN chmod +x start.sh
-
-CMD ["./start.sh"]
+ENTRYPOINT [ "./start.sh" ]
