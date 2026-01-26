@@ -85,7 +85,10 @@ AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters packageType=agent \
   --http-method GET \
   --api-version 7.1 \
+  --query "value[?platform=='linux-x64'] | [0]" \
   -o json 2>/dev/null) || true
+
+echo $AZP_AGENT_RESPONSE
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
