@@ -76,7 +76,8 @@ case "$ARCH" in
   *) AZP_PLATFORM="linux-x64" ;;
 esac
 
-AZP_ORG_NAME="${AZP_URL##*/}"
+AZP_ORG_NAME="${AZP_URL#https://dev.azure.com/}"
+AZP_ORG_NAME="${AZP_ORG_NAME%/}"
 
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
