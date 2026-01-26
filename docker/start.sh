@@ -86,7 +86,7 @@ AZP_AGENT_RESPONSE=$(az devops invoke \
   --http-method GET \
   --api-version 7.1 \
   --query "value[?platform=='linux-x64'] | [0]" \
-  -o json 2>/dev/null) || true
+  -o json)
 
 echo $AZP_AGENT_RESPONSE
 
