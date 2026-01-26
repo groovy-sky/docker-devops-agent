@@ -79,6 +79,9 @@ esac
 AZP_ORG_NAME="${AZP_URL#https://dev.azure.com/}"
 AZP_ORG_NAME="${AZP_ORG_NAME%/}"
 
+echo $AZP_URL
+echo $AZP_ORG_NAME
+
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
