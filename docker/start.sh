@@ -89,10 +89,11 @@ fi
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
-  --resource packages/agent \
+  --resource packages \
+  --route-parameters packageType=agent \
   --http-method GET \
   --query-parameters platform="$AZP_PLATFORM" \
-  --api-version 3.0-preview \
+  --api-version 7.1 \
   -o json 2>/dev/null) || true
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
