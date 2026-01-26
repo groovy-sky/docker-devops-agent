@@ -57,12 +57,6 @@ print_header() {
   echo -e "${lightcyan}$1${nocolor}"
 }
 
-debug_header() {
-  yellow='\033[1;33m'
-  nocolor='\033[0m'
-  echo -e "${yellow}$1${nocolor}"
-}
-
 # Let the agent ignore the token env variables
 export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 
@@ -76,10 +70,10 @@ export AZURE_DEVOPS_EXT_PAT="$AZP_TOKEN"
 
 ARCH=$(uname -m)
 case "$ARCH" in
-  x86_64) AZP_PLATFORM="linux-amd64" ;;
+  x86_64) AZP_PLATFORM="linux-x64" ;;
   aarch64|arm64) AZP_PLATFORM="linux-arm64" ;;
   armv7l|armv6l) AZP_PLATFORM="linux-arm" ;;
-  *) AZP_PLATFORM="linux-amd64" ;;
+  *) AZP_PLATFORM="linux-x64" ;;
 esac
 
 AZP_ORG_NAME=${AZP_ORG_NAME:-$AZP_URL}
@@ -92,8 +86,6 @@ else
   AZP_ORG_NAME=${AZP_ORG_NAME%%.*}
 fi
 
-debug_header "Debug: org='$AZP_ORG_NAME' platform='$AZP_PLATFORM' arch='$ARCH'"
-
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
@@ -105,15 +97,12 @@ AZP_AGENT_RESPONSE=$(az devops invoke \
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
-  echo 1>&2 "debug: raw response:"
   echo 1>&2 "$AZP_AGENT_RESPONSE"
   exit 1
 fi
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
   echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "debug: org='${AZP_ORG_NAME}'"
-  echo 1>&2 "debug: raw response:"
   echo 1>&2 "$AZP_AGENT_RESPONSE"
   exit 1
 fi
@@ -123,8 +112,6 @@ AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
 
 if [ -z "$AZP_AGENTPACKAGE_URL" ] || [ "$AZP_AGENTPACKAGE_URL" = "null" ]; then
   echo 1>&2 "error: could not determine a matching Azure Pipelines agent"
-  echo 1>&2 "debug: raw response:"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
   exit 1
 fi
 
