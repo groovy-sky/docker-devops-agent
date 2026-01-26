@@ -70,43 +70,75 @@ export AZURE_DEVOPS_EXT_PAT="$AZP_TOKEN"
 
 AZP_ARTIFACT_ORG="${AZP_ARTIFACT_ORG:-$AZP_URL}"
 
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) AZP_PLATFORM="linux-x64" ;;
-  aarch64|arm64) AZP_PLATFORM="linux-arm64" ;;
-  armv7l|armv6l) AZP_PLATFORM="linux-arm" ;;
-  *) AZP_PLATFORM="linux-x64" ;;
-esac
-
-AZP_AGENT_RESPONSE=$(az devops invoke \
-  --organization "$AZP_ARTIFACT_ORG" \
-  --area distributedtask \
-  --resource packages \
-  --route-parameters packageType=agent \
-  --query-parameters platform="$AZP_PLATFORM" \
-  --api-version 3.0-preview \
-  -o json 2>/dev/null) || true
-
-if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
-  echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
-  exit 1
-fi
-
-if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
-  echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
-  exit 1
-fi
-
-if [ -z "$AZP_ARTIFACT_FEED" ] || [ -z "$AZP_ARTIFACT_NAME" ] || [ -z "$AZP_ARTIFACT_VERSION" ] || [ -z "$AZP_ARTIFACT_TARBALL" ]; then
-  echo 1>&2 "error: set AZP_ARTIFACT_FEED, AZP_ARTIFACT_NAME, AZP_ARTIFACT_VERSION, and AZP_ARTIFACT_TARBALL"
+if [ -z "$AZP_ARTIFACT_FEED" ] || [ -z "$AZP_ARTIFACT_NAME" ] || [ -z "$AZP_ARTIFACT_TARBALL" ]; then
+  echo 1>&2 "error: set AZP_ARTIFACT_FEED, AZP_ARTIFACT_NAME, and AZP_ARTIFACT_TARBALL"
   exit 1
 fi
 
 AZP_ARTIFACT_PROJECT_ARG=()
 if [ -n "$AZP_ARTIFACT_PROJECT" ]; then
   AZP_ARTIFACT_PROJECT_ARG=(--project "$AZP_ARTIFACT_PROJECT")
+fi
+
+AZP_ROUTE_PARAMS=(feedId="$AZP_ARTIFACT_FEED")
+if [ -n "$AZP_ARTIFACT_PROJECT" ]; then
+  AZP_ROUTE_PARAMS+=(project="$AZP_ARTIFACT_PROJECT")
+fi
+
+AZP_PKG_LIST=$(az devops invoke \
+  --organization "$AZP_ARTIFACT_ORG" \
+  --area packaging \
+  --resource packages \
+  --route-parameters "${AZP_ROUTE_PARAMS[@]}" \
+  --query-parameters packageNameQuery="$AZP_ARTIFACT_NAME" protocolType=upack \
+  --api-version 7.1-preview.1 \
+  -o json 2>/dev/null) || true
+
+if ! echo "$AZP_PKG_LIST" | jq . >/dev/null 2>&1; then
+  echo 1>&2 "error: invalid response from Azure DevOps when querying artifact packages"
+  echo 1>&2 "$AZP_PKG_LIST"
+  exit 1
+fi
+
+AZP_PACKAGE_ID=$(echo "$AZP_PKG_LIST" \
+  | jq -r --arg name "$AZP_ARTIFACT_NAME" '.value[] | select(.name == $name) | .id' \
+  | head -n 1)
+
+if [ -z "$AZP_PACKAGE_ID" ]; then
+  echo 1>&2 "error: package '$AZP_ARTIFACT_NAME' not found in feed '$AZP_ARTIFACT_FEED'"
+  exit 1
+fi
+
+AZP_PKG_VERSIONS=$(az devops invoke \
+  --organization "$AZP_ARTIFACT_ORG" \
+  --area packaging \
+  --resource versions \
+  --route-parameters "${AZP_ROUTE_PARAMS[@]}" packageId="$AZP_PACKAGE_ID" \
+  --query-parameters isDeleted=false \
+  --api-version 7.1-preview.1 \
+  -o json 2>/dev/null) || true
+
+if ! echo "$AZP_PKG_VERSIONS" | jq . >/dev/null 2>&1; then
+  echo 1>&2 "error: invalid response from Azure DevOps when querying artifact versions"
+  echo 1>&2 "$AZP_PKG_VERSIONS"
+  exit 1
+fi
+
+if [ -z "$AZP_ARTIFACT_VERSION" ]; then
+  AZP_ARTIFACT_VERSION=$(echo "$AZP_PKG_VERSIONS" \
+    | jq -r '.value[].version' \
+    | sort -V \
+    | tail -n 1)
+
+  if [ -z "$AZP_ARTIFACT_VERSION" ]; then
+    echo 1>&2 "error: no versions found for package '$AZP_ARTIFACT_NAME'"
+    exit 1
+  fi
+else
+  if ! echo "$AZP_PKG_VERSIONS" | jq -e --arg v "$AZP_ARTIFACT_VERSION" '.value[] | select(.version == $v)' >/dev/null 2>&1; then
+    echo 1>&2 "error: version '$AZP_ARTIFACT_VERSION' not found for package '$AZP_ARTIFACT_NAME'"
+    exit 1
+  fi
 fi
 
 az artifacts universal download \
