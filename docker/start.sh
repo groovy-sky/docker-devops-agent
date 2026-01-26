@@ -21,6 +21,9 @@ if [ -z "$AZP_TOKEN" ]; then
     --resource 499b84ac-1321-427f-aa17-267ca6975798 \
     --query accessToken -o tsv 2>/dev/null) || true
 
+  az devops configure --defaults organization=$AZP_URL
+
+
   if [ -z "$AZP_TOKEN" ]; then
     echo 1>&2 "error: failed to obtain Azure DevOps access token using managed identity"
     exit 1
