@@ -93,20 +93,23 @@ if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
+AZP_AGENT_MATCHES=$(echo "$AZP_AGENT_RESPONSE" \
+  | jq -r --arg platform "$AZP_PLATFORM" \
+    '[.value[] | select(.platform == $platform)]')
+
+if [ -z "$AZP_AGENT_MATCHES" ] || [ "$AZP_AGENT_MATCHES" = "null" ] \
+  || [ "$(echo "$AZP_AGENT_MATCHES" | jq 'length')" -eq 0 ]; then
   echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
+  echo 1>&2 "available platforms:"
+  echo 1>&2 "$(echo "$AZP_AGENT_RESPONSE" | jq -r '.value[].platform' | sort -u)"
   exit 1
 fi
 
-AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
-  | jq -r --arg platform "$AZP_PLATFORM" \
-    '.value
-     | map(select(.platform == $platform))
-     | map([.version.major,.version.minor,.version.patch,.downloadUrl])
-     | sort
-     | .[length-1]
-     | .[3]')
+AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_MATCHES" \
+  | jq -r 'map([.version.major,.version.minor,.version.patch,.downloadUrl])
+           | sort
+           | .[length-1]
+           | .[3]')
 
 if [ -z "$AZP_AGENTPACKAGE_URL" ] || [ "$AZP_AGENTPACKAGE_URL" = "null" ]; then
   echo 1>&2 "error: could not determine a matching Azure Pipelines agent"
