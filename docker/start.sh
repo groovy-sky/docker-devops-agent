@@ -78,15 +78,6 @@ esac
 
 AZP_ORG_NAME="${AZP_URL##*/}"
 
-echo "AZP_URL=$AZP_URL"
-echo "AZP_ORG_NAME=$AZP_ORG_NAME"
-echo "ARCH=$ARCH"
-echo "AZP_PLATFORM=$AZP_PLATFORM"
-echo "AZP_POOL=${AZP_POOL:-Default}"
-echo "AZP_WORK=${AZP_WORK:-_work}"
-echo "AZP_AGENT_NAME=${AZP_AGENT_NAME:-$(hostname)}"
-echo "AZP_TOKEN_FILE=$AZP_TOKEN_FILE"
-
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
@@ -102,26 +93,26 @@ if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   exit 1
 fi
 
-AZP_AGENT_MATCHES=$(echo "$AZP_AGENT_RESPONSE" \
-  | jq -r --arg platform "$AZP_PLATFORM" \
-    '[.value[] | select(.platform == $platform)]')
-
-if [ -z "$AZP_AGENT_MATCHES" ] || [ "$AZP_AGENT_MATCHES" = "null" ] \
-  || [ "$(echo "$AZP_AGENT_MATCHES" | jq 'length')" -eq 0 ]; then
-  echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "available platforms:"
-  echo 1>&2 "$(echo "$AZP_AGENT_RESPONSE" | jq -r '.value[].platform' | sort -u)"
+if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
+  echo 1>&2 "error: no agent packages returned"
+  echo 1>&2 "$AZP_AGENT_RESPONSE"
   exit 1
 fi
 
-AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_MATCHES" \
-  | jq -r 'map([.version.major,.version.minor,.version.patch,.downloadUrl])
-           | sort
-           | .[length-1]
-           | .[3]')
+AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
+  | jq -r --arg platform "$AZP_PLATFORM" '
+      .value
+      | map(select(.platform == $platform))
+      | map([.version.major,.version.minor,.version.patch,.downloadUrl])
+      | sort
+      | .[length-1]
+      | .[3]
+    ')
 
 if [ -z "$AZP_AGENTPACKAGE_URL" ] || [ "$AZP_AGENTPACKAGE_URL" = "null" ]; then
-  echo 1>&2 "error: could not determine a matching Azure Pipelines agent"
+  echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
+  echo 1>&2 "available platforms:"
+  echo "$AZP_AGENT_RESPONSE" | jq -r '.value | map(.platform) | unique | sort | .[]'
   exit 1
 fi
 
