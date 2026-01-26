@@ -84,7 +84,6 @@ AZP_AGENT_RESPONSE=$(az devops invoke \
   --resource packages \
   --route-parameters packageType=agent \
   --http-method GET \
-  --query-parameters platform="$AZP_PLATFORM" \
   --api-version 7.1 \
   -o json 2>/dev/null) || true
 
@@ -101,7 +100,13 @@ if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev
 fi
 
 AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
-  | jq -r '.value | map([.version.major,.version.minor,.version.patch,.downloadUrl]) | sort | .[length-1] | .[3]')
+  | jq -r --arg platform "$AZP_PLATFORM" \
+    '.value
+     | map(select(.platform == $platform))
+     | map([.version.major,.version.minor,.version.patch,.downloadUrl])
+     | sort
+     | .[length-1]
+     | .[3]')
 
 if [ -z "$AZP_AGENTPACKAGE_URL" ] || [ "$AZP_AGENTPACKAGE_URL" = "null" ]; then
   echo 1>&2 "error: could not determine a matching Azure Pipelines agent"
