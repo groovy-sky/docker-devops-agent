@@ -92,17 +92,15 @@ else
   AZP_ORG_NAME=${AZP_ORG_NAME%%.*}
 fi
 
-debug_header "Debug: org='$AZP_ORG_NAME' pool='${AZP_POOL:-Default}' platform='$AZP_PLATFORM' arch='$ARCH'"
+debug_header "Debug: org='$AZP_ORG_NAME' platform='$AZP_PLATFORM' arch='$ARCH'"
 
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
-  --resource pools \
-  --route-parameters poolId="${AZP_POOL:-Default}" \
-  --route-parameters subResource=agents \
+  --resource packages/agent \
   --http-method GET \
-  --api-version 5.1 \
   --query-parameters platform="$AZP_PLATFORM" \
+  --api-version 3.0-preview \
   -o json 2>/dev/null) || true
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
@@ -114,7 +112,7 @@ fi
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
   echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "debug: org='${AZP_ORG_NAME}' pool='${AZP_POOL:-Default}'"
+  echo 1>&2 "debug: org='${AZP_ORG_NAME}'"
   echo 1>&2 "debug: raw response:"
   echo 1>&2 "$AZP_AGENT_RESPONSE"
   exit 1
