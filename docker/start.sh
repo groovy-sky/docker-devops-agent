@@ -59,10 +59,18 @@ export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 
 print_header "1. Determining matching Azure Pipelines agent..."
 
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64) AZP_PLATFORM="linux-x64" ;;
+  aarch64|arm64) AZP_PLATFORM="linux-arm64" ;;
+  armv7l|armv6l) AZP_PLATFORM="linux-arm" ;;
+  *) AZP_PLATFORM="linux-x64" ;;
+esac
+
 AZP_AGENT_RESPONSE=$(curl -LsS \
   -u user:$(cat "$AZP_TOKEN_FILE") \
   -H 'Accept:application/json;api-version=3.0-preview' \
-  "$AZP_URL/_apis/distributedtask/packages/agent?platform=linux-x64")
+  "$AZP_URL/_apis/distributedtask/packages/agent?platform=${AZP_PLATFORM}")
 
 if echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
