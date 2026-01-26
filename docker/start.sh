@@ -11,17 +11,20 @@ if [ -z "$AZP_TOKEN_FILE" ]; then
 fi
 
 if [ -z "$AZP_TOKEN" ]; then
-  # Attempt managed identity token retrieval to validate IMDS availability
-  MI_TOKEN_RESPONSE=$(curl -sS \
-    -H "Metadata: true" \
-    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798") || true
-
-  if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
-    echo 1>&2 "error: missing AZP_TOKEN environment variable and managed identity endpoint is not available"
+  if ! command -v az >/dev/null 2>&1; then
+    echo 1>&2 "error: missing AZP_TOKEN and Azure CLI is not installed"
     exit 1
   fi
 
-  AZP_TOKEN=$(echo "$MI_TOKEN_RESPONSE" | jq -r '.access_token')
+  az login --identity --allow-no-subscriptions >/dev/null 2>&1 || true
+  AZP_TOKEN=$(az account get-access-token \
+    --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+    --query accessToken -o tsv 2>/dev/null) || true
+
+  if [ -z "$AZP_TOKEN" ]; then
+    echo 1>&2 "error: failed to obtain Azure DevOps access token using managed identity"
+    exit 1
+  fi
 fi
 
 echo -n "$AZP_TOKEN" > "$AZP_TOKEN_FILE"
@@ -57,7 +60,15 @@ print_header() {
 # Let the agent ignore the token env variables
 export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 
-print_header "1. Determining matching Azure Pipelines agent..."
+print_header "1. Downloading Azure Pipelines agent via Azure CLI..."
+
+if ! az extension show --name azure-devops >/dev/null 2>&1; then
+  az extension add --name azure-devops -y >/dev/null 2>&1
+fi
+
+export AZURE_DEVOPS_EXT_PAT="$AZP_TOKEN"
+
+AZP_ARTIFACT_ORG="${AZP_ARTIFACT_ORG:-$AZP_URL}"
 
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -67,10 +78,14 @@ case "$ARCH" in
   *) AZP_PLATFORM="linux-x64" ;;
 esac
 
-AZP_AGENT_RESPONSE=$(curl -LsS \
-  -u user:$(cat "$AZP_TOKEN_FILE") \
-  -H 'Accept:application/json;api-version=3.0-preview' \
-  "$AZP_URL/_apis/distributedtask/packages/agent?platform=${AZP_PLATFORM}")
+AZP_AGENT_RESPONSE=$(az devops invoke \
+  --organization "$AZP_ARTIFACT_ORG" \
+  --area distributedtask \
+  --resource packages \
+  --route-parameters packageType=agent \
+  --query-parameters platform="$AZP_PLATFORM" \
+  --api-version 3.0-preview \
+  -o json 2>/dev/null) || true
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
   echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
@@ -84,17 +99,27 @@ if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev
   exit 1
 fi
 
-AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
-  | jq -r '.value | map([.version.major,.version.minor,.version.patch,.downloadUrl]) | sort | .[length-1] | .[3]')
-
-if [ -z "$AZP_AGENTPACKAGE_URL" -o "$AZP_AGENTPACKAGE_URL" == "null" ]; then
-  echo 1>&2 "error: could not determine a matching Azure Pipelines agent - check that account '$AZP_URL' is correct and the token is valid for that account"
+if [ -z "$AZP_ARTIFACT_FEED" ] || [ -z "$AZP_ARTIFACT_NAME" ] || [ -z "$AZP_ARTIFACT_VERSION" ] || [ -z "$AZP_ARTIFACT_TARBALL" ]; then
+  echo 1>&2 "error: set AZP_ARTIFACT_FEED, AZP_ARTIFACT_NAME, AZP_ARTIFACT_VERSION, and AZP_ARTIFACT_TARBALL"
   exit 1
 fi
 
-print_header "2. Downloading and installing Azure Pipelines agent..."
+AZP_ARTIFACT_PROJECT_ARG=()
+if [ -n "$AZP_ARTIFACT_PROJECT" ]; then
+  AZP_ARTIFACT_PROJECT_ARG=(--project "$AZP_ARTIFACT_PROJECT")
+fi
 
-curl -LsS $AZP_AGENTPACKAGE_URL | tar -xz & wait $!
+az artifacts universal download \
+  --organization "$AZP_ARTIFACT_ORG" \
+  "${AZP_ARTIFACT_PROJECT_ARG[@]}" \
+  --feed "$AZP_ARTIFACT_FEED" \
+  --name "$AZP_ARTIFACT_NAME" \
+  --version "$AZP_ARTIFACT_VERSION" \
+  --path /azp/agent
+
+print_header "2. Installing Azure Pipelines agent..."
+
+tar -xzf "/azp/agent/$AZP_ARTIFACT_TARBALL" -C /azp/agent
 
 source ./env.sh
 
