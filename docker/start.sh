@@ -72,10 +72,20 @@ AZP_AGENT_RESPONSE=$(curl -LsS \
   -H 'Accept:application/json;api-version=3.0-preview' \
   "$AZP_URL/_apis/distributedtask/packages/agent?platform=${AZP_PLATFORM}")
 
-if echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
-  AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
-    | jq -r '.value | map([.version.major,.version.minor,.version.patch,.downloadUrl]) | sort | .[length-1] | .[3]')
+if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
+  echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
+  echo 1>&2 "$AZP_AGENT_RESPONSE"
+  exit 1
 fi
+
+if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
+  echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
+  echo 1>&2 "$AZP_AGENT_RESPONSE"
+  exit 1
+fi
+
+AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
+  | jq -r '.value | map([.version.major,.version.minor,.version.patch,.downloadUrl]) | sort | .[length-1] | .[3]')
 
 if [ -z "$AZP_AGENTPACKAGE_URL" -o "$AZP_AGENTPACKAGE_URL" == "null" ]; then
   echo 1>&2 "error: could not determine a matching Azure Pipelines agent - check that account '$AZP_URL' is correct and the token is valid for that account"
