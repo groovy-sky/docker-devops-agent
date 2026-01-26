@@ -7,20 +7,24 @@ if [ -z "$AZP_URL" ]; then
 fi
 
 if [ -z "$AZP_TOKEN_FILE" ]; then
-  if [ -z "$AZP_TOKEN" ]; then
-    # Attempt managed identity token retrieval to validate IMDS availability
-    MI_TOKEN_RESPONSE=$(curl -sS \
-      -H "Metadata: true" \
-      "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798") || true
+  AZP_TOKEN_FILE="/azp/.token"
+fi
 
-    if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
-      echo 1>&2 "error: missing AZP_TOKEN environment variable and managed identity endpoint is not available"
-      exit 1
-    fi
+if [ -z "$AZP_TOKEN" ]; then
+  # Attempt managed identity token retrieval to validate IMDS availability
+  MI_TOKEN_RESPONSE=$(curl -sS \
+    -H "Metadata: true" \
+    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798") || true
+
+  if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
+    echo 1>&2 "error: missing AZP_TOKEN environment variable and managed identity endpoint is not available"
+    exit 1
   fi
 
-  echo -n $AZP_TOKEN > "$AZP_TOKEN_FILE"
+  AZP_TOKEN=$(echo "$MI_TOKEN_RESPONSE" | jq -r '.access_token')
 fi
+
+echo -n "$AZP_TOKEN" > "$AZP_TOKEN_FILE"
 
 unset AZP_TOKEN
 

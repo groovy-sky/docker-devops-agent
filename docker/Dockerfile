@@ -1,23 +1,24 @@
 FROM ubuntu:24.04
+# ENV TARGETARCH="linux-arm64"
+# Also can be "linux-arm", "linux-arm64".
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && \
+  apt upgrade -y && \
+  apt install -y curl git jq libicu74
 
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends \
-      ca-certificates \
-      curl \
-      jq \
-      libicu74 \
-      gnupg \
-      lsb-release && \
-    curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install Azure CLI
+RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
 WORKDIR /azp/
 
 COPY ./start.sh ./
 RUN chmod +x ./start.sh
+
+# Create agent user and set up home directory
+RUN useradd -m -d /home/agent agent
+RUN chown -R agent:agent /azp /home/agent
+
+USER agent
+ENV AGENT_ALLOW_RUNASROOT="true"
 
 ENTRYPOINT [ "./start.sh" ]
