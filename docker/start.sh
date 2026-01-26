@@ -20,7 +20,8 @@ if [ -z "$AZP_TOKEN" ]; then
   AZP_TOKEN=$(az account get-access-token \
     --resource 499b84ac-1321-427f-aa17-267ca6975798 \
     --query accessToken -o tsv 2>/dev/null) || true
-
+    
+  az config set extension.dynamic_install_allow_preview=true
   az devops configure --defaults organization=$AZP_URL
 
 
