@@ -78,6 +78,15 @@ esac
 
 AZP_ORG_NAME="${AZP_URL##*/}"
 
+echo "AZP_URL=$AZP_URL"
+echo "AZP_ORG_NAME=$AZP_ORG_NAME"
+echo "ARCH=$ARCH"
+echo "AZP_PLATFORM=$AZP_PLATFORM"
+echo "AZP_POOL=${AZP_POOL:-Default}"
+echo "AZP_WORK=${AZP_WORK:-_work}"
+echo "AZP_AGENT_NAME=${AZP_AGENT_NAME:-$(hostname)}"
+echo "AZP_TOKEN_FILE=$AZP_TOKEN_FILE"
+
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
