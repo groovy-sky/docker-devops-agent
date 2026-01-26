@@ -70,10 +70,10 @@ export AZURE_DEVOPS_EXT_PAT="$AZP_TOKEN"
 
 ARCH=$(uname -m)
 case "$ARCH" in
-  x86_64) AZP_PLATFORM="linux-x64" ;;
+  x86_64) AZP_PLATFORM="linux-amd64" ;;
   aarch64|arm64) AZP_PLATFORM="linux-arm64" ;;
   armv7l|armv6l) AZP_PLATFORM="linux-arm" ;;
-  *) AZP_PLATFORM="linux-x64" ;;
+  *) AZP_PLATFORM="linux-amd64" ;;
 esac
 
 AZP_ORG_NAME=${AZP_ORG_NAME:-$AZP_URL}
@@ -89,10 +89,12 @@ fi
 AZP_AGENT_RESPONSE=$(az devops invoke \
   --route-parameters organization="$AZP_ORG_NAME" \
   --area distributedtask \
-  --resource packages/agent \
+  --resource pools \
+  --route-parameters poolId="${AZP_POOL:-Default}" \
+  --route-parameters subResource=agents \
   --http-method GET \
+  --api-version 5.1 \
   --query-parameters platform="$AZP_PLATFORM" \
-  --api-version 3.0-preview \
   -o json 2>/dev/null) || true
 
 if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
