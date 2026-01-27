@@ -11,26 +11,17 @@ if [ -z "$AZP_TOKEN_FILE" ]; then
 fi
 
 if [ -z "$AZP_TOKEN" ]; then
-  if ! command -v az >/dev/null 2>&1; then
-    echo 1>&2 "error: missing AZP_TOKEN and Azure CLI is not installed"
+  # Attempt managed identity token retrieval to validate IMDS availability
+  MI_TOKEN_RESPONSE=$(curl -sS \
+    -H "Metadata: true" \
+    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798") || true
+
+  if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
+    echo 1>&2 "error: missing AZP_TOKEN environment variable and managed identity endpoint is not available"
     exit 1
   fi
 
-  az login --identity --allow-no-subscriptions >/dev/null 2>&1 || true
-  AZP_TOKEN=$(az account get-access-token \
-    --resource 499b84ac-1321-427f-aa17-267ca6975798 \
-    --query accessToken -o tsv 2>/dev/null) || true
-
-
-  az config set extension.use_dynamic_install=yes_without_prompt
-  az config set extension.dynamic_install_allow_preview=true
-  az devops configure --defaults organization=$AZP_URL
-
-
-  if [ -z "$AZP_TOKEN" ]; then
-    echo 1>&2 "error: failed to obtain Azure DevOps access token using managed identity"
-    exit 1
-  fi
+  AZP_TOKEN=$(echo "$MI_TOKEN_RESPONSE" | jq -r '.access_token')
 fi
 
 echo -n "$AZP_TOKEN" > "$AZP_TOKEN_FILE"
@@ -66,72 +57,26 @@ print_header() {
 # Let the agent ignore the token env variables
 export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 
-print_header "1. Downloading Azure Pipelines agent via Azure CLI..."
+print_header "1. Determining matching Azure Pipelines agent..."
 
-if ! az extension show --name azure-devops >/dev/null 2>&1; then
-  az extension add --name azure-devops -y >/dev/null 2>&1
+AZP_AGENT_RESPONSE=$(curl -LsS \
+  -u user:$(cat "$AZP_TOKEN_FILE") \
+  -H 'Accept:application/json;api-version=3.0-preview' \
+  "$AZP_URL/_apis/distributedtask/packages/agent?platform=linux-x64")
+
+if echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
+  AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
+    | jq -r '.value | map([.version.major,.version.minor,.version.patch,.downloadUrl]) | sort | .[length-1] | .[3]')
 fi
 
-export AZURE_DEVOPS_EXT_PAT="$AZP_TOKEN"
-
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) AZP_PLATFORM="linux-x64" ;;
-  aarch64|arm64) AZP_PLATFORM="linux-arm64" ;;
-  armv7l|armv6l) AZP_PLATFORM="linux-arm" ;;
-  *) AZP_PLATFORM="linux-x64" ;;
-esac
-
-AZP_ORG_NAME="${AZP_URL#https://dev.azure.com/}"
-AZP_ORG_NAME="${AZP_ORG_NAME%/}"
-
-echo $AZP_URL
-echo $AZP_ORG_NAME
-
-AZP_AGENT_RESPONSE=$(az devops invoke \
-  --route-parameters organization="$AZP_ORG_NAME" \
-  --area distributedtask \
-  --resource packages \
-  --route-parameters packageType=agent \
-  --http-method GET \
-  --api-version 7.1 \
-  --query "value[?platform=='linux-x64'] | [0]" \
-  -o json)
-
-echo $AZP_AGENT_RESPONSE
-
-if ! echo "$AZP_AGENT_RESPONSE" | jq . >/dev/null 2>&1; then
-  echo 1>&2 "error: invalid response from Azure DevOps when requesting agent packages"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
+if [ -z "$AZP_AGENTPACKAGE_URL" -o "$AZP_AGENTPACKAGE_URL" == "null" ]; then
+  echo 1>&2 "error: could not determine a matching Azure Pipelines agent - check that account '$AZP_URL' is correct and the token is valid for that account"
   exit 1
 fi
 
-if ! echo "$AZP_AGENT_RESPONSE" | jq -e '.value and (.value | length > 0)' >/dev/null 2>&1; then
-  echo 1>&2 "error: no agent packages returned"
-  echo 1>&2 "$AZP_AGENT_RESPONSE"
-  exit 1
-fi
+print_header "2. Downloading and installing Azure Pipelines agent..."
 
-AZP_AGENTPACKAGE_URL=$(echo "$AZP_AGENT_RESPONSE" \
-  | jq -r --arg platform "$AZP_PLATFORM" '
-      .value
-      | map(select(.platform == $platform))
-      | map([.version.major,.version.minor,.version.patch,.downloadUrl])
-      | sort
-      | .[length-1]
-      | .[3]
-    ')
-
-if [ -z "$AZP_AGENTPACKAGE_URL" ] || [ "$AZP_AGENTPACKAGE_URL" = "null" ]; then
-  echo 1>&2 "error: no agent packages returned for platform '${AZP_PLATFORM}'"
-  echo 1>&2 "available platforms:"
-  echo "$AZP_AGENT_RESPONSE" | jq -r '.value | map(.platform) | unique | sort | .[]'
-  exit 1
-fi
-
-curl -LsS "$AZP_AGENTPACKAGE_URL" | tar -xz
-
-print_header "2. Installing Azure Pipelines agent..."
+curl -LsS $AZP_AGENTPACKAGE_URL | tar -xz & wait $!
 
 source ./env.sh
 
