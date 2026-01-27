@@ -89,6 +89,14 @@ trap 'cleanup; exit 143' TERM
 
 print_header "3. Configuring Azure Pipelines agent..."
 
+echo "Debug: uname -m = $(uname -m)"
+echo "Debug: uname -s = $(uname -s)"
+echo "Debug: OS release = $(cat /etc/os-release 2>/dev/null | tr '\n' ' ')"
+echo "Debug: Agent.Listener file info:"
+file ./bin/Agent.Listener || true
+echo "Debug: Agent.Listener ldd output (if available):"
+ldd ./bin/Agent.Listener 2>/dev/null || true
+
 ./config.sh --unattended \
   --agent "${AZP_AGENT_NAME:-$(hostname)}" \
   --url "$AZP_URL" \
