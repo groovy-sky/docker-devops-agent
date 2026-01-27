@@ -60,7 +60,30 @@ export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 print_header "1. Determining matching Azure Pipelines agent..."
 
 REPO="microsoft/azure-pipelines-agent"
-ARCH="linux-x64"   # linux-x64, linux-arm64, osx-x64, win-x64
+
+CPU_ARCH="$(uname -m)"
+case "$CPU_ARCH" in
+  aarch64|arm64)
+    ARCH="linux-arm64"
+    ;;
+  armv7l|armv6l)
+    ARCH="linux-arm"
+    ;;
+  x86_64|amd64)
+    ARCH="linux-x64"
+    ;;
+  *)
+    ARCH="linux-x64"
+    ;;
+esac
+
+# Detect musl (e.g., Alpine) and switch to musl packages if available
+if [ -f /etc/alpine-release ]; then
+  case "$ARCH" in
+    linux-x64) ARCH="linux-musl-x64" ;;
+    linux-arm64) ARCH="linux-musl-arm64" ;;
+  esac
+fi
 
 VERSION=$(
   curl -s "https://api.github.com/repos/$REPO/releases/latest" \
@@ -92,10 +115,19 @@ print_header "3. Configuring Azure Pipelines agent..."
 echo "Debug: uname -m = $(uname -m)"
 echo "Debug: uname -s = $(uname -s)"
 echo "Debug: OS release = $(cat /etc/os-release 2>/dev/null | tr '\n' ' ')"
+echo "Debug: Selected ARCH = $ARCH"
 echo "Debug: Agent.Listener file info:"
-file ./bin/Agent.Listener || true
+if command -v file >/dev/null 2>&1; then
+  file ./bin/Agent.Listener || true
+else
+  echo "Debug: 'file' not installed"
+fi
 echo "Debug: Agent.Listener ldd output (if available):"
-ldd ./bin/Agent.Listener 2>/dev/null || true
+if command -v ldd >/dev/null 2>&1; then
+  ldd ./bin/Agent.Listener 2>/dev/null || true
+else
+  echo "Debug: 'ldd' not installed"
+fi
 
 ./config.sh --unattended \
   --agent "${AZP_AGENT_NAME:-$(hostname)}" \
