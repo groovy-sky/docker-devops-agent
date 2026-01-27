@@ -134,8 +134,8 @@ fi
   --url "$AZP_URL" \
   --auth PAT \
   --token $(cat "$AZP_TOKEN_FILE") \
-  --pool "${AZP_POOL:-Default}" \
-  --work "${AZP_WORK:-_work}" \
+  --pool "${AZP_POOL}" \
+  --work "${AZP_WORK}" \
   --replace \
   --acceptTeeEula & wait $!
 
