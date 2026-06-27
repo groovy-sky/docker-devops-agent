@@ -31,6 +31,7 @@ unset AZP_TOKEN
 
 AZP_POOL="${AZP_POOL:-Default}"
 AZP_WORK="${AZP_WORK:-_work}"
+AZP_AGENT_ONCE="${AZP_AGENT_ONCE:-false}"
 
 mkdir -p "$AZP_WORK"
 
@@ -153,6 +154,7 @@ fi
   --token "$(cat "$AZP_TOKEN_FILE")" \
   --pool "${AZP_POOL:-Default}" \
   --work "${AZP_WORK:-_work}" \
+  --once "${AZP_AGENT_ONCE}" \
   --replace \
   --acceptTeeEula & wait $!
 
