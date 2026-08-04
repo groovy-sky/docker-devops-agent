@@ -42,7 +42,18 @@
             "type": "string"
         },
         "AZP_TOKEN": {
-            "type": "securestring"
+            "type": "securestring",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Azure DevOps Personal Access Token. Leave empty to use managed identity authentication instead."
+            }
+        },
+        "AZP_CLIENT_ID": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Client ID of a user-assigned managed identity. Leave empty to use the system-assigned identity."
+            }
         },
         "AZP_POOL": {
             "type": "string",
@@ -52,9 +63,12 @@
     "resources": [
         {
             "type": "Microsoft.ContainerInstance/containerGroups",
-            "apiVersion": "2018-10-01",
+            "apiVersion": "2021-09-01",
             "name": "[parameters('containerName')]",
             "location": "[parameters('location')]",
+            "identity": {
+                "type": "SystemAssigned"
+            },
             "tags": {},
             "properties": {
                 "containers": [
@@ -76,6 +90,10 @@
                 {
                     "name": "AZP_TOKEN",
                     "secureValue": "[parameters('AZP_TOKEN')]"
+                },
+                {
+                    "name": "AZP_CLIENT_ID",
+                    "value": "[parameters('AZP_CLIENT_ID')]"
                 },
                 {
                     "name": "AZP_AGENT_NAME",

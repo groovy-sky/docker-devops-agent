@@ -11,18 +11,34 @@ if [ -z "$AZP_TOKEN_FILE" ]; then
   AZP_TOKEN_FILE="/azp/.token"
 fi
 
+# Acquire authentication token: prefer managed identity, fall back to PAT.
+# AZP_CLIENT_ID may be set to a user-assigned managed identity client ID.
 if [ -z "$AZP_TOKEN" ]; then
-  # Attempt managed identity token retrieval to validate IMDS availability
-  MI_TOKEN_RESPONSE=$(curl -sS \
+  echo "AZP_TOKEN not set; attempting to acquire token via Azure Managed Identity (IMDS)..."
+
+  IMDS_URL="http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798"
+
+  # Append client_id for user-assigned managed identity if provided
+  if [ -n "$AZP_CLIENT_ID" ]; then
+    # URL-encode the client_id value (it is a UUID, so only alphanumeric and hyphens)
+    ENCODED_CLIENT_ID=$(printf '%s' "$AZP_CLIENT_ID" | sed 's/ /%20/g')
+    IMDS_URL="${IMDS_URL}&client_id=${ENCODED_CLIENT_ID}"
+  fi
+
+  MI_TOKEN_RESPONSE=$(curl -sS --max-time 10 --fail \
     -H "Metadata: true" \
-    "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798") || true
+    "$IMDS_URL" 2>/dev/null) || true
 
   if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
-    echo 1>&2 "error: missing AZP_TOKEN environment variable and managed identity endpoint is not available"
+    echo 1>&2 "error: AZP_TOKEN is not set and the managed identity IMDS endpoint is unavailable or returned no token."
+    echo 1>&2 "  To use a PAT, set the AZP_TOKEN environment variable."
+    echo 1>&2 "  To use managed identity, ensure the container runs on an Azure resource with an assigned identity"
+    echo 1>&2 "  and that the identity has been added to the Azure DevOps organization/project."
     exit 1
   fi
 
   AZP_TOKEN=$(echo "$MI_TOKEN_RESPONSE" | jq -r '.access_token')
+  echo "Managed identity token acquired successfully."
 fi
 
 echo -n "$AZP_TOKEN" > "$AZP_TOKEN_FILE"

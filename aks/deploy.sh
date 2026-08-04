@@ -1,8 +1,21 @@
 #!/bin/bash
+# Deploy a self-hosted Azure DevOps build agent on AKS using Managed Identity.
+#
+# Managed Identity (recommended):
+#   - Enable the managed identity on the AKS node pool (system-assigned) or attach a
+#     user-assigned managed identity to it.
+#   - Add the identity to the Azure DevOps organization under Organization Settings > Users
+#     and grant it the required project/pipeline permissions.
+#   - Set AZP_CLIENT_ID in build-agent.yml to the client ID if using a user-assigned identity.
+#
+# PAT fallback (optional):
+#   - To use a Personal Access Token instead, uncomment and set AZP_TOKEN below, then
+#     uncomment the AZP_TOKEN env var section in build-agent.yml.
+#   - AZP_TOKEN=<your-pat-here>
+
 AKS_NAME="build-agents-aks"
 AKS_GROUP="Test-AKS"
 AKS_REGION="westeurope"
-AZP_TOKEN=put-pat-value-here
 
 echo "Resource Group deploy"
 
@@ -18,9 +31,9 @@ rm ~/.kube/config
 
 az aks get-credentials --resource-group $AKS_GROUP --name $AKS_NAME
 
-echo "Secret deploy"
-
-kubectl create secret generic devops-secrets --from-literal=AZP_TOKEN=$AZP_TOKEN
+# Uncomment the following lines if using PAT authentication instead of managed identity:
+# echo "Secret deploy"
+# kubectl create secret generic devops-secrets --from-literal=AZP_TOKEN=$AZP_TOKEN
 
 echo "Pod deploy"
 

@@ -41,11 +41,17 @@ spec:
               value: "devops-agent"
             - name: AZP_POOL
               value: "aks-pool"
-            - name: AZP_TOKEN
-              valueFrom: 
-                secretKeyRef:
-                  key: AZP_TOKEN
-                  name: devops-secrets
+            # Optional: set AZP_CLIENT_ID to the client ID of a user-assigned managed identity.
+            # If omitted, the system-assigned managed identity of the AKS node pool is used.
+            # To use a PAT instead, uncomment AZP_TOKEN below and create the secret with:
+            #   kubectl create secret generic devops-secrets --from-literal=AZP_TOKEN=<your-pat>
+            # - name: AZP_CLIENT_ID
+            #   value: "<user-assigned-identity-client-id>"
+            # - name: AZP_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       key: AZP_TOKEN
+            #       name: devops-secrets
       volumes:
       - name: azp-volume
         emptyDir: {}
