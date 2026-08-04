@@ -29,7 +29,7 @@ variables:
 
 steps:
 
-- bash: docker pull ghcr.io/groovy-sky/ubuntu:focal; docker tag ghcr.io/groovy-sky/ubuntu:focal ubuntu:focal; docker build -f $(system.defaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) --build-arg ANSIBLE_VERSION=$(imageversion) $(system.defaultWorkingDirectory)
+- bash: docker build -f $(System.DefaultWorkingDirectory)/docker/Dockerfile -t $(registryLogin)/$(imageName):$(imageversion) $(System.DefaultWorkingDirectory)
   displayName: 'docker build'
 
 - bash: docker login -u $(registryLogin) -p $(registryPassword) 
