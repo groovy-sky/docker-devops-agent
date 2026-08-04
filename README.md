@@ -12,17 +12,17 @@ Managed identity is only available when the container is deployed on an **Azure 
 
 ### How It Works
 
-At startup, if `AZP_TOKEN` is not set, the agent automatically:
+At startup, the container first attempts managed-identity authentication and only falls back to `AZP_TOKEN` when IMDS does not return an Azure DevOps access token. It:
 1. Calls the Azure Instance Metadata Service (IMDS) endpoint inside the container:
    ```
    http://169.254.169.254/metadata/identity/oauth2/token
-     ?api-version=2018-02-01
+     ?api-version=2019-08-01
      &resource=499b84ac-1321-427f-aa17-267ca6975798
    ```
 2. Extracts the `access_token` from the response.
-3. Uses the token as `Authorization: ****** for Azure DevOps API calls.
+3. Uses that Microsoft Entra access token to query the Azure DevOps agent package API and then registers the agent via `config.sh --auth PAT --token <token>`. The `PAT` flag name is the Azure Pipelines agent's historical CLI label; the supplied value in managed-identity mode is an Entra access token, not a personal access token.
 
-If `AZP_TOKEN` **is** set, the PAT is used instead (backward-compatible).
+If IMDS is unavailable or the identity is not configured, `AZP_TOKEN` can still be provided as a deliberate legacy fallback.
 
 ---
 
@@ -41,9 +41,9 @@ If `AZP_TOKEN` **is** set, the PAT is used instead (backward-compatible).
 
 1. Open your **Azure DevOps Organization Settings**.
 2. Navigate to **Users** (under *General*) → **Add Users**.
-3. Search for your managed identity by name (for system-assigned) or by client ID (for user-assigned).
-4. Assign **Basic** (or **Stakeholder**) access level.
-5. Add to the project and configure granular permissions (e.g. read/write pipelines, repositories).
+3. Add the managed identity as a user in Azure DevOps (for example by display name for system-assigned identities, or by the backing service principal/user-assigned identity details in Microsoft Entra ID).
+4. Assign an access level that allows agent registration and job execution.
+5. Grant the identity permission to use the target agent pool and any project resources the builds require (repositories, variable groups, service connections, feeds, and so on).
 
 ---
 
@@ -52,7 +52,7 @@ If `AZP_TOKEN` **is** set, the PAT is used instead (backward-compatible).
 | Variable | Required | Description |
 |---|---|---|
 | `AZP_URL` | ✅ | Azure DevOps organization URL, e.g. `https://dev.azure.com/myorg` |
-| `AZP_TOKEN` | ❌ | Personal Access Token. If set, used instead of managed identity. |
+| `AZP_TOKEN` | ❌ | Personal Access Token fallback. Used only when managed identity does not yield an Azure DevOps token. |
 | `AZP_CLIENT_ID` | ❌ | Client ID of a **user-assigned** managed identity. If omitted, the system-assigned identity is used. |
 | `AZP_POOL` | ❌ | Agent pool name (default: `Default`). |
 | `AZP_AGENT_NAME` | ❌ | Agent display name (default: container hostname). |
@@ -71,6 +71,9 @@ docker build -f docker/Dockerfile -t devops-agent:latest .
 
 ### Run with Managed Identity (Azure-hosted only)
 
+> Important: a local Docker or Podman host outside Azure cannot reach Azure IMDS at `169.254.169.254`, so managed identity works only when the container runs on Azure compute that has the identity assigned.
+
+
 ```bash
 docker run -e AZP_URL=https://dev.azure.com/myorg \
            -e AZP_POOL=Default \
@@ -87,6 +90,9 @@ docker run -e AZP_URL=https://dev.azure.com/myorg \
 ```
 
 ### Run with PAT (local/non-Azure environment)
+
+Use this only as a backwards-compatible fallback when you intentionally cannot use managed identity.
+
 
 ```bash
 docker run -e AZP_URL=https://dev.azure.com/myorg \
@@ -133,7 +139,7 @@ If you previously configured `AZP_TOKEN`:
 - **Managed identity mode (recommended):** Remove `AZP_TOKEN` from your container/pod configuration. Assign a managed identity to your Azure resource and grant it Azure DevOps permissions as described above.
 - **PAT mode (legacy):** Keep `AZP_TOKEN` set. The agent will continue to work exactly as before.
 
-No changes to the Docker image or scripts are required for the PAT fallback path.
+No changes to the Docker image or scripts are required for the PAT fallback path. The startup script removes its transient token file after registration and reacquires a managed-identity token for cleanup when possible.
 
 ---
 
