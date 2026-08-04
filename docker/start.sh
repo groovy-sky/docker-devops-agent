@@ -1,3 +1,4 @@
+```bash name=docker/start.sh url=https://github.com/groovy-sky/docker-devops-agent/blob/master/docker/start.sh
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
@@ -31,7 +32,7 @@ TOKEN_FILE="${AGENT_ROOT}/.azdo-mi-token"
 AZDO_RESOURCE="499b84ac-1321-427f-aa17-267ca6975798"
 
 print_header() {
-  printf '\033[1;36m%s\033[0m\n' "\$1"
+  printf '\033[1;36m%s\033[0m\n' "$1"
 }
 
 fail() {
@@ -193,7 +194,10 @@ cd "$AGENT_DIR"
 curl --location --silent --show-error --fail \
   "$AGENT_URL" | tar -xz
 
+# Azure agent env.sh is not nounset-safe; temporarily disable -u while sourcing.
+set +u
 source ./env.sh
+set -u
 
 export AGENT_ALLOW_RUNASROOT="1"
 
@@ -256,3 +260,4 @@ fi
 
 # AgentService handles Azure Pipelines agent restart/update behavior.
 exec ./externals/node/bin/node ./bin/AgentService.js interactive
+```
