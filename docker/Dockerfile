@@ -12,12 +12,15 @@ RUN apt update && \
     tar && \
   rm -rf /var/lib/apt/lists/*
 
+RUN useradd --create-home --home-dir /home/agent --shell /bin/bash agent && \
+  mkdir -p /azp && \
+  chown agent:agent /azp
+
 WORKDIR /azp
 
 COPY --chown=agent:agent docker/start.sh /azp/start.sh
 
-RUN useradd --create-home --home-dir /home/agent --shell /bin/bash agent && \
-  sed -i 's/\r$//' /azp/start.sh && \
+RUN sed -i 's/\r$//' /azp/start.sh && \
   chmod 0755 /azp/start.sh
 
 USER agent
