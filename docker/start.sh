@@ -1,189 +1,258 @@
-#!/bin/bash
-set -e
-set -o pipefail
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-if [ -z "$AZP_URL" ]; then
-  echo 1>&2 "error: missing AZP_URL environment variable"
-  exit 1
-fi
+###############################################################################
+# Required environment variables
+#
+# AZP_URL                 Example: https://dev.azure.com/my-organization
+#
+# Optional environment variables
+#
+# AZP_POOL                Agent-pool name. Default: Default
+# AZP_AGENT_NAME          Agent name. Default: container hostname
+# AZP_WORK                Work directory. Default: _work
+# AZP_AGENT_ONCE          true or false. Default: false
+#
+# AZP_CLIENT_ID           Client ID of a user-assigned managed identity.
+#                         Leave unset for a system-assigned managed identity.
+###############################################################################
 
-if [ -z "$AZP_TOKEN_FILE" ]; then
-  AZP_TOKEN_FILE="/azp/.token"
-fi
-
-# Acquire authentication token: prefer managed identity, fall back to PAT.
-# AZP_CLIENT_ID may be set to a user-assigned managed identity client ID.
-if [ -z "$AZP_TOKEN" ]; then
-  echo "AZP_TOKEN not set; attempting to acquire token via Azure Managed Identity (IMDS)..."
-
-  IMDS_URL="http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=499b84ac-1321-427f-aa17-267ca6975798"
-
-  # Append client_id for user-assigned managed identity if provided
-  if [ -n "$AZP_CLIENT_ID" ]; then
-    # URL-encode the client_id value (it is a UUID, so only alphanumeric and hyphens)
-    ENCODED_CLIENT_ID=$(printf '%s' "$AZP_CLIENT_ID" | sed 's/ /%20/g')
-    IMDS_URL="${IMDS_URL}&client_id=${ENCODED_CLIENT_ID}"
-  fi
-
-  MI_TOKEN_RESPONSE=$(curl -sS --max-time 10 --fail \
-    -H "Metadata: true" \
-    "$IMDS_URL" 2>/dev/null) || true
-
-  if ! echo "$MI_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null 2>&1; then
-    echo 1>&2 "error: AZP_TOKEN is not set and the managed identity IMDS endpoint is unavailable or returned no token."
-    echo 1>&2 "  To use a PAT, set the AZP_TOKEN environment variable."
-    echo 1>&2 "  To use managed identity, ensure the container runs on an Azure resource with an assigned identity"
-    echo 1>&2 "  and that the identity has been added to the Azure DevOps organization/project."
-    exit 1
-  fi
-
-  AZP_TOKEN=$(echo "$MI_TOKEN_RESPONSE" | jq -r '.access_token')
-  echo "Managed identity token acquired successfully."
-fi
-
-echo -n "$AZP_TOKEN" > "$AZP_TOKEN_FILE"
-
-unset AZP_TOKEN
+: "${AZP_URL:?error: AZP_URL environment variable is required}"
 
 AZP_POOL="${AZP_POOL:-Default}"
 AZP_WORK="${AZP_WORK:-_work}"
 AZP_AGENT_ONCE="${AZP_AGENT_ONCE:-false}"
 
-mkdir -p "$AZP_WORK"
+AGENT_ROOT="/azp"
+AGENT_DIR="${AGENT_ROOT}/agent"
+TOKEN_FILE="${AGENT_ROOT}/.azdo-mi-token"
 
-rm -rf /azp/agent
-mkdir -p /azp/agent
-cd /azp/agent
-
-export AGENT_ALLOW_RUNASROOT="1"
-
-cleanup() {
-  if [ -e config.sh ]; then
-    print_header "Cleanup. Removing Azure Pipelines agent..."
-
-    ./config.sh remove --unattended \
-      --auth PAT \
-      --token "$(cat "$AZP_TOKEN_FILE")"
-  fi
-}
+# Azure DevOps Microsoft Entra resource / application ID.
+AZDO_RESOURCE="499b84ac-1321-427f-aa17-267ca6975798"
 
 print_header() {
-  lightcyan='\033[1;36m'
-  nocolor='\033[0m'
-  echo -e "${lightcyan}$1${nocolor}"
+  printf '\033[1;36m%s\033[0m\n' "\$1"
 }
 
-# Let the agent ignore the token env variables
-export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
+fail() {
+  echo >&2 "error: $*"
+  exit 1
+}
 
-print_header "1. Determining matching Azure Pipelines agent..."
+###############################################################################
+# Gets a fresh Microsoft Entra token from Azure IMDS.
+#
+# This uses:
+# - system-assigned MI when AZP_CLIENT_ID is absent
+# - user-assigned MI when AZP_CLIENT_ID is set
+###############################################################################
+get_azdo_managed_identity_token() {
+  local imds_url response token
 
-REPO="microsoft/azure-pipelines-agent"
+  imds_url="http://169.254.169.254/metadata/identity/oauth2/token"
+  imds_url+="?api-version=2019-08-01"
+  imds_url+="&resource=${AZDO_RESOURCE}"
+
+  if [[ -n "${AZP_CLIENT_ID:-}" ]]; then
+    imds_url+="&client_id=${AZP_CLIENT_ID}"
+  fi
+
+  response="$(
+    curl --silent --show-error --fail \
+      --connect-timeout 5 \
+      --max-time 15 \
+      -H "Metadata: true" \
+      "$imds_url"
+  )" || return 1
+
+  token="$(jq --raw-output '.access_token // empty' <<<"$response")"
+
+  [[ -n "$token" ]] || return 1
+
+  printf '%s' "$token"
+}
+
+remove_agent() {
+  local token=""
+
+  if [[ ! -f "${AGENT_DIR}/config.sh" ]]; then
+    return 0
+  fi
+
+  print_header "Cleanup. Attempting to remove Azure Pipelines agent..."
+
+  # Acquire a NEW token. Entra / managed-identity tokens are short-lived,
+  # so do not depend on the token acquired during initial registration.
+  token="$(get_azdo_managed_identity_token 2>/dev/null || true)"
+
+  if [[ -z "$token" ]]; then
+    echo >&2 "warning: could not acquire a managed-identity token during cleanup."
+    echo >&2 "warning: agent was not explicitly removed; --replace handles stale registration on next start."
+    return 0
+  fi
+
+  # `PAT` is the agent CLI's historical auth-mode name.
+  # The supplied token here is an Entra managed-identity access token,
+  # NOT a Personal Access Token.
+  "${AGENT_DIR}/config.sh" remove --unattended \
+    --auth PAT \
+    --token "$token" || true
+
+  unset token
+}
+
+cleanup() {
+  local result=$?
+
+  rm -f "$TOKEN_FILE" 2>/dev/null || true
+  remove_agent || true
+
+  exit "$result"
+}
+
+trap cleanup INT TERM
+
+###############################################################################
+# 1. Obtain a short-lived Azure DevOps Entra token using managed identity
+###############################################################################
+print_header "1. Acquiring Azure DevOps token through Azure Managed Identity..."
+
+AZP_TOKEN="$(get_azdo_managed_identity_token)" ||
+  fail "Could not get an Azure DevOps token from Azure IMDS.
+
+Ensure that:
+  - the workload runs on an Azure resource with an assigned managed identity;
+  - IMDS is reachable from the container;
+  - AZP_CLIENT_ID is the Client ID of the user-assigned MI, when applicable."
+
+printf '%s' "$AZP_TOKEN" > "$TOKEN_FILE"
+chmod 600 "$TOKEN_FILE"
+unset AZP_TOKEN
+
+echo "Managed identity token acquired successfully."
+
+###############################################################################
+# 2. Select the correct agent package
+###############################################################################
+print_header "2. Determining matching Azure Pipelines agent..."
 
 CPU_ARCH="$(uname -m)"
+
 case "$CPU_ARCH" in
   aarch64|arm64)
     ARCH="linux-arm64"
     ;;
-  armv7l|armv6l)
-    ARCH="linux-arm"
-    ;;
   x86_64|amd64)
     ARCH="linux-x64"
     ;;
+  armv7l|armv6l)
+    ARCH="linux-arm"
+    ;;
   *)
-    ARCH="linux-x64"
+    fail "Unsupported CPU architecture: ${CPU_ARCH}"
     ;;
 esac
 
-# Detect musl (e.g., Alpine) and switch to musl packages if available
-if [ -f /etc/alpine-release ]; then
+# Alpine requires musl-specific packages where available.
+if [[ -f /etc/alpine-release ]]; then
   case "$ARCH" in
     linux-x64) ARCH="linux-musl-x64" ;;
     linux-arm64) ARCH="linux-musl-arm64" ;;
   esac
 fi
 
-RELEASE_JSON=$(curl -s "https://api.github.com/repos/$REPO/releases/latest")
-VERSION=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
+echo "Selected agent architecture: ${ARCH}"
 
+###############################################################################
+# 3. Download and install latest matching agent
+###############################################################################
+REPO="microsoft/azure-pipelines-agent"
+
+RELEASE_JSON="$(
+  curl --silent --show-error --fail \
+    --connect-timeout 10 \
+    --max-time 30 \
+    "https://api.github.com/repos/${REPO}/releases/latest"
+)" || fail "Could not retrieve the latest Azure Pipelines agent release."
+
+VERSION="$(jq --raw-output '.tag_name // empty' <<<"$RELEASE_JSON")"
 VERSION="${VERSION#v}"
 
-if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
-  echo 1>&2 "error: could not determine a matching Azure Pipelines agent version from GitHub releases"
-  exit 1
-fi
+[[ -n "$VERSION" ]] ||
+  fail "Could not determine the Azure Pipelines agent version."
 
-BASE_URL="https://download.agent.dev.azure.com/agent/$VERSION"
-FILE="vsts-agent-$ARCH-$VERSION.tar.gz"
-AZP_AGENTPACKAGE_URL="$BASE_URL/$FILE"
-CHECKSUM_URL=$(echo "$RELEASE_JSON" | jq -r --arg file "$FILE" '[.assets[]? | select(.name == ($file + ".sha256") or .name == ($file + ".sha256sum") or .name == ($file + ".sha256.txt")) | .browser_download_url][0] // empty')
+AGENT_FILE="vsts-agent-${ARCH}-${VERSION}.tar.gz"
+AGENT_URL="https://download.agent.dev.azure.com/agent/${VERSION}/${AGENT_FILE}"
 
-print_header "2. Downloading and installing Azure Pipelines agent..."
+print_header "3. Downloading Azure Pipelines agent ${VERSION}..."
 
-curl -LsS "$AZP_AGENTPACKAGE_URL" | tar -xz
+rm -rf "$AGENT_DIR"
+mkdir -p "$AGENT_DIR"
+cd "$AGENT_DIR"
 
-if [ -n "$CHECKSUM_URL" ]; then
-  print_header "2b. Verifying package checksum..."
-  if command -v sha256sum >/dev/null 2>&1; then
-    CHECKSUM_VALUE=$(curl -sS "$CHECKSUM_URL" | awk '{print $1}')
-    if [ -z "$CHECKSUM_VALUE" ]; then
-      echo 1>&2 "error: checksum file was empty"
-      exit 1
-    fi
-    echo "$CHECKSUM_VALUE  $FILE" | sha256sum -c -
-  else
-    echo 1>&2 "warning: sha256sum not available; skipping checksum verification"
-  fi
-else
-  echo 1>&2 "warning: no checksum asset found in GitHub release; skipping verification"
-fi
+curl --location --silent --show-error --fail \
+  "$AGENT_URL" | tar -xz
 
 source ./env.sh
 
-trap 'cleanup; exit 130' INT
-trap 'cleanup; exit 143' TERM
+export AGENT_ALLOW_RUNASROOT="1"
 
-print_header "3. Configuring Azure Pipelines agent..."
+###############################################################################
+# Diagnostics
+###############################################################################
+print_header "4. Agent diagnostics..."
 
 echo "Debug: uname -m = $(uname -m)"
 echo "Debug: uname -s = $(uname -s)"
-echo "Debug: OS release = $(cat /etc/os-release 2>/dev/null | tr '\n' ' ')"
-echo "Debug: Selected ARCH = $ARCH"
-echo "Debug: Agent.Listener file info:"
+echo "Debug: Selected ARCH = ${ARCH}"
+
 if command -v file >/dev/null 2>&1; then
+  echo "Debug: Agent.Listener file information:"
   file ./bin/Agent.Listener || true
-else
-  echo "Debug: 'file' not installed"
 fi
-echo "Debug: Agent.Listener ldd output (if available):"
+
 if command -v ldd >/dev/null 2>&1; then
-  ldd ./bin/Agent.Listener 2>/dev/null || true
-else
-  echo "Debug: 'ldd' not installed"
+  echo "Debug: Agent.Listener shared-library dependencies:"
+  ldd ./bin/Agent.Listener || true
 fi
+
+###############################################################################
+# 5. Register the agent
+#
+# Important:
+# The token is a Microsoft Entra access token issued to the Azure managed
+# identity. It is not a PAT. Azure DevOps must already know this managed
+# identity and it must have permission to administer/register agents in AZP_POOL.
+###############################################################################
+print_header "5. Configuring Azure Pipelines agent..."
 
 ./config.sh --unattended \
   --agent "${AZP_AGENT_NAME:-$(hostname)}" \
   --url "$AZP_URL" \
   --auth PAT \
-  --token "$(cat "$AZP_TOKEN_FILE")" \
-  --pool "${AZP_POOL:-Default}" \
-  --work "${AZP_WORK:-_work}" \
-  --once "${AZP_AGENT_ONCE}" \
+  --token "$(cat "$TOKEN_FILE")" \
+  --pool "$AZP_POOL" \
+  --work "$AZP_WORK" \
+  --once "$AZP_AGENT_ONCE" \
   --replace \
-  --acceptTeeEula & wait $!
+  --acceptTeeEula
 
-# remove the administrative token before accepting work
-rm -f "$AZP_TOKEN_FILE"
+# Do not leave the registration token on disk.
+rm -f "$TOKEN_FILE"
 
-print_header "4. Running Azure Pipelines agent..."
+###############################################################################
+# 6. Run the agent
+###############################################################################
+print_header "6. Running Azure Pipelines agent..."
 
-# `exec` the node runtime so it's aware of TERM and INT signals
-# AgentService.js understands how to handle agent self-update and restart
-if [ "$AZP_AGENT_ONCE" = "true" ]; then
-  ./externals/node/bin/node ./bin/AgentService.js interactive --once & wait $!
-  cleanup
-else
-  exec ./externals/node/bin/node ./bin/AgentService.js interactive
+if [[ "$AZP_AGENT_ONCE" == "true" ]]; then
+  ./externals/node/bin/node ./bin/AgentService.js interactive --once
+
+  # Explicit cleanup after the one job completes.
+  remove_agent
+  trap - INT TERM
+  exit 0
 fi
+
+# AgentService handles Azure Pipelines agent restart/update behavior.
+exec ./externals/node/bin/node ./bin/AgentService.js interactive
