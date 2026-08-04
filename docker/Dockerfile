@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 
 RUN apt update && \
   apt upgrade -y && \
-  apt install -y curl git jq libicu74
+  apt install -y curl git jq libicu74 file
 
 # Install Azure CLI
 RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
