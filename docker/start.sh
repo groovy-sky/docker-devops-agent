@@ -11,7 +11,6 @@ AZP_AGENT_NAME="${AZP_AGENT_NAME:-$(hostname)}"
 AGENT_ROOT="/azp"
 AGENT_DIR="${AGENT_ROOT}/agent"
 TOKEN_FILE="${AGENT_ROOT}/.token"
-INPUT_TOKEN_FILE="${AZP_TOKEN_FILE:-}"
 AUTH_MODE=""
 CLEANUP_STARTED=false
 
@@ -33,10 +32,7 @@ get_azdo_managed_identity_token() {
   imds_url="http://169.254.169.254/metadata/identity/oauth2/token"
   imds_url+="?api-version=${IMDS_API_VERSION}"
   imds_url+="&resource=${AZDO_RESOURCE}"
-
-  if [[ -n "${AZP_CLIENT_ID:-}" ]]; then
-    imds_url+="&client_id=${AZP_CLIENT_ID}"
-  fi
+  imds_url+="&client_id=${AZP_CLIENT_ID}"
 
   response="$({
     curl --silent --show-error --fail \
@@ -110,35 +106,30 @@ trap 'cleanup $?' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
+export VSO_AGENT_IGNORE=AZP_TOKEN
 
 print_header "1. Selecting Azure DevOps authentication..."
 
-if managed_identity_token="$(get_azdo_managed_identity_token 2>/dev/null)"; then
+if [[ -n "${AZP_CLIENT_ID:-}" ]]; then
   AUTH_MODE="managed_identity"
+  echo "AZP_CLIENT_ID is set; using managed identity authentication."
+  managed_identity_token=""
+  managed_identity_token="$(get_azdo_managed_identity_token)" \
+    || fail "Managed identity token acquisition failed. Ensure the container runs on an Azure resource with a managed identity assigned and IMDS is reachable."
   write_token_file "$managed_identity_token"
   unset managed_identity_token
   echo "Managed identity token acquired successfully."
-elif [[ -n "$INPUT_TOKEN_FILE" ]]; then
-  [[ -r "$INPUT_TOKEN_FILE" ]] || fail "AZP_TOKEN_FILE is set but is not readable: $INPUT_TOKEN_FILE"
+elif [[ -n "${AZP_TOKEN:-}" ]]; then
   AUTH_MODE="pat"
-  write_token_file "$(<"$INPUT_TOKEN_FILE")"
-  echo "Managed identity unavailable; using AZP_TOKEN_FILE fallback."
+  write_token_file "$AZP_TOKEN"
+  unset AZP_TOKEN
+  echo "Using PAT authentication."
 else
-  if [[ -n "${AZP_TOKEN:-}" ]]; then
-    AUTH_MODE="pat"
-    write_token_file "$AZP_TOKEN"
-    unset AZP_TOKEN
-    echo "Managed identity unavailable; using AZP_TOKEN fallback."
-  else
-    fail "Could not acquire an Azure DevOps token from Azure IMDS and AZP_TOKEN fallback was not provided.
+  fail "No authentication credentials provided.
 
-Ensure that:
-  - the workload runs on an Azure resource with an assigned managed identity;
-  - IMDS is reachable from the container (local Docker/Podman hosts outside Azure cannot reach IMDS);
-  - AZP_CLIENT_ID is set when selecting a user-assigned identity; or
-  - AZP_TOKEN is deliberately provided as a legacy fallback."
-  fi
+Set one of:
+  AZP_CLIENT_ID   - client ID of the managed identity to use (Azure-hosted only)
+  AZP_TOKEN       - Personal Access Token for Azure DevOps"
 fi
 
 AZP_URL="${AZP_URL%/}"

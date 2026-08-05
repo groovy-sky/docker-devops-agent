@@ -29,61 +29,55 @@ else
 fi
 
 select_auth_mode() {
-  local imds_response="$1"
-  local client_id="${2:-}"
-  local pat="${3:-}"
+  local client_id="${1:-}"
+  local pat="${2:-}"
   local auth_mode=""
   local token=""
-  local imds_url="http://169.254.169.254/metadata/identity/oauth2/token?api-version=2019-08-01&resource=499b84ac-1321-427f-aa17-267ca6975798"
+  local imds_url="http://169.254.169.254/metadata/identity/oauth2/token?api-version=2019-08-01&resource=499b84ac-1321-427f-aa17-267ca6975798&client_id=${client_id}"
 
   if [[ -n "$client_id" ]]; then
-    imds_url+="&client_id=${client_id}"
-  fi
-
-  if [[ -n "$imds_response" ]]; then
-    token="$(jq -r '.access_token // empty' <<<"$imds_response")"
-    if [[ -n "$token" ]]; then
-      auth_mode="managed_identity"
-    fi
-  fi
-
-  if [[ -z "$auth_mode" && -n "$pat" ]]; then
+    auth_mode="managed_identity"
+    # In real usage curl would contact IMDS; here we simulate success/failure via caller
+    token="<mi-token>"
+  elif [[ -n "$pat" ]]; then
     auth_mode="pat"
     token="$pat"
-  fi
-
-  if [[ -z "$auth_mode" ]]; then
+  else
     return 1
   fi
 
   printf '%s|%s|%s\n' "$auth_mode" "$token" "$imds_url"
 }
 
-result="$(select_auth_mode '{"access_token":"system-mi-token"}' '' 'legacy-pat')"
-if [[ "$result" == managed_identity'|'system-mi-token'|'* ]]; then
-  pass "managed identity takes precedence when IMDS returns a token"
+# AZP_CLIENT_ID set → managed identity, regardless of AZP_TOKEN
+result="$(select_auth_mode 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' 'some-pat')"
+if [[ "$result" == managed_identity'|'*'|'* ]]; then
+  pass "AZP_CLIENT_ID set: managed identity selected (AZP_TOKEN ignored)"
 else
-  fail "Expected managed identity precedence, got: $result"
+  fail "Expected managed identity when AZP_CLIENT_ID is set, got: $result"
 fi
 
-result="$(select_auth_mode '{"access_token":"user-mi-token"}' 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' '')"
-if [[ "$result" == *'|http://169.254.169.254/metadata/identity/oauth2/token?api-version=2019-08-01&resource=499b84ac-1321-427f-aa17-267ca6975798&client_id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' ]]; then
+# AZP_CLIENT_ID set → client_id appended to IMDS URL
+result="$(select_auth_mode 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' '')"
+if [[ "$result" == *'&client_id=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' ]]; then
   pass "user-assigned client ID is appended to the IMDS request"
 else
   fail "Expected user-assigned client ID in IMDS URL, got: $result"
 fi
 
-result="$(select_auth_mode '' '' 'legacy-pat')"
+# AZP_TOKEN set, no AZP_CLIENT_ID → PAT
+result="$(select_auth_mode '' 'legacy-pat')"
 if [[ "$result" == 'pat|legacy-pat|'* ]]; then
-  pass "PAT is used as an explicit fallback when IMDS is unavailable"
+  pass "AZP_TOKEN set (no AZP_CLIENT_ID): PAT authentication selected"
 else
-  fail "Expected PAT fallback, got: $result"
+  fail "Expected PAT authentication, got: $result"
 fi
 
-if select_auth_mode '' '' '' >/dev/null 2>&1; then
-  fail "Expected auth selection to fail without IMDS token or PAT"
+# Neither AZP_CLIENT_ID nor AZP_TOKEN → error
+if select_auth_mode '' '' >/dev/null 2>&1; then
+  fail "Expected auth selection to fail when neither AZP_CLIENT_ID nor AZP_TOKEN is set"
 else
-  pass "auth selection fails when neither managed identity nor PAT is available"
+  pass "auth selection fails when neither AZP_CLIENT_ID nor AZP_TOKEN is set"
 fi
 
 package_discovery_args() {

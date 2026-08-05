@@ -4,25 +4,38 @@ This document gives an example of using Azure Container Instance as Azure DevOps
 
 ---
 
-## Managed Identity Authentication (Recommended)
+## Authentication Modes
 
-Starting with the current version, the agent supports **Azure Managed Identity** for authentication with Azure DevOps, eliminating the need to manage Personal Access Tokens (PATs).
+The agent startup script selects an authentication mode based on which environment variables are provided:
+
+| Condition | Mode selected |
+|---|---|
+| `AZP_CLIENT_ID` is set (non-empty) | **Managed identity** — token is fetched from Azure IMDS using that client ID. If IMDS fails, the container exits with an error (no PAT fallback). |
+| `AZP_TOKEN` is set (non-empty) | **PAT** — the Personal Access Token is used directly. |
+| Neither is set | **Error** — the container exits immediately with a clear message. |
+
+If both `AZP_CLIENT_ID` and `AZP_TOKEN` are set, **managed identity takes precedence** and `AZP_TOKEN` is ignored.
+
+---
+
+## Managed Identity Authentication (Recommended)
 
 Managed identity is only available when the container is deployed on an **Azure resource that has an assigned managed identity** (e.g. Azure Container Instance, AKS node pool) and the identity has been granted permissions in Azure DevOps.
 
 ### How It Works
 
-At startup, the container first attempts managed-identity authentication and only falls back to `AZP_TOKEN` when IMDS does not return an Azure DevOps access token. It:
+At startup, when `AZP_CLIENT_ID` is provided the container:
 1. Calls the Azure Instance Metadata Service (IMDS) endpoint inside the container:
    ```
    http://169.254.169.254/metadata/identity/oauth2/token
      ?api-version=2019-08-01
      &resource=499b84ac-1321-427f-aa17-267ca6975798
+     &client_id=<AZP_CLIENT_ID>
    ```
 2. Extracts the `access_token` from the response.
 3. Uses that Microsoft Entra access token to query the Azure DevOps agent package API and then registers the agent via `config.sh --auth PAT --token <token>`. The `PAT` flag name is the Azure Pipelines agent's historical CLI label; the supplied value in managed-identity mode is an Entra access token, not a personal access token.
 
-If IMDS is unavailable or the identity is not configured, `AZP_TOKEN` can still be provided as a deliberate legacy fallback.
+If IMDS is unavailable or the identity is not configured, the container exits with an error. There is no automatic fallback to PAT.
 
 ---
 
@@ -52,12 +65,14 @@ If IMDS is unavailable or the identity is not configured, `AZP_TOKEN` can still 
 | Variable | Required | Description |
 |---|---|---|
 | `AZP_URL` | ✅ | Azure DevOps organization URL, e.g. `https://dev.azure.com/myorg` |
-| `AZP_TOKEN` | ❌ | Personal Access Token fallback. Used only when managed identity does not yield an Azure DevOps token. |
-| `AZP_CLIENT_ID` | ❌ | Client ID of a **user-assigned** managed identity. If omitted, the system-assigned identity is used. |
+| `AZP_CLIENT_ID` | ⚠️ | Client ID of a **user-assigned** managed identity. When set, managed identity mode is used exclusively (no PAT fallback). |
+| `AZP_TOKEN` | ⚠️ | Personal Access Token. Used when `AZP_CLIENT_ID` is not set. |
 | `AZP_POOL` | ❌ | Agent pool name (default: `Default`). |
 | `AZP_AGENT_NAME` | ❌ | Agent display name (default: container hostname). |
 | `AZP_WORK` | ❌ | Agent work directory (default: `_work`). |
 | `AZP_AGENT_ONCE` | ❌ | Set to `true` to run a single job and exit (default: `false`). |
+
+> ⚠️ At least one of `AZP_CLIENT_ID` or `AZP_TOKEN` must be provided; the container exits with an error if neither is set.
 
 ---
 
@@ -69,18 +84,9 @@ If IMDS is unavailable or the identity is not configured, `AZP_TOKEN` can still 
 docker build -f docker/Dockerfile -t devops-agent:latest .
 ```
 
-### Run with Managed Identity (Azure-hosted only)
+### Run with User-Assigned Managed Identity (Recommended)
 
 > Important: a local Docker or Podman host outside Azure cannot reach Azure IMDS at `169.254.169.254`, so managed identity works only when the container runs on Azure compute that has the identity assigned.
-
-
-```bash
-docker run -e AZP_URL=https://dev.azure.com/myorg \
-           -e AZP_POOL=Default \
-           devops-agent:latest
-```
-
-### Run with User-Assigned Managed Identity
 
 ```bash
 docker run -e AZP_URL=https://dev.azure.com/myorg \
@@ -90,9 +96,6 @@ docker run -e AZP_URL=https://dev.azure.com/myorg \
 ```
 
 ### Run with PAT (local/non-Azure environment)
-
-Use this only as a backwards-compatible fallback when you intentionally cannot use managed identity.
-
 
 ```bash
 docker run -e AZP_URL=https://dev.azure.com/myorg \
@@ -112,8 +115,8 @@ az deployment group create \
   --parameters containerName=my-agent \
                imageName=gr00vysky/devops-agent:latest \
                AZP_URL=https://dev.azure.com/myorg \
-               AZP_POOL=Default
-  # AZP_TOKEN and AZP_CLIENT_ID default to empty (managed identity mode)
+               AZP_POOL=Default \
+               AZP_CLIENT_ID=<user-assigned-identity-client-id>
 ```
 
 The ARM template (`azure/azuredeploy.json`) enables a **system-assigned managed identity** on the Container Instance automatically.
@@ -126,7 +129,7 @@ See [`aks/deploy.sh`](aks/deploy.sh) and [`aks/build-agent.yml`](aks/build-agent
 
 ```bash
 cd aks
-# Edit build-agent.yml: set AZP_URL and optionally AZP_CLIENT_ID
+# Edit build-agent.yml: set AZP_URL and AZP_CLIENT_ID
 bash deploy.sh
 ```
 
@@ -136,16 +139,16 @@ bash deploy.sh
 
 If you previously configured `AZP_TOKEN`:
 
-- **Managed identity mode (recommended):** Remove `AZP_TOKEN` from your container/pod configuration. Assign a managed identity to your Azure resource and grant it Azure DevOps permissions as described above.
-- **PAT mode (legacy):** Keep `AZP_TOKEN` set. The agent will continue to work exactly as before.
+- **Managed identity mode (recommended):** Remove `AZP_TOKEN` from your container/pod configuration. Assign a managed identity to your Azure resource, grant it Azure DevOps permissions as described above, and set `AZP_CLIENT_ID` to the managed identity's client ID.
+- **PAT mode:** Keep `AZP_TOKEN` set (and do not set `AZP_CLIENT_ID`). The agent will continue to work exactly as before.
 
-No changes to the Docker image or scripts are required for the PAT fallback path. The startup script removes its transient token file after registration and reacquires a managed-identity token for cleanup when possible.
+`AZP_TOKEN_FILE` is no longer a supported input. If you previously relied on it, switch to `AZP_TOKEN` or managed identity.
 
 ---
 
 ## Testing
 
-Lightweight shell tests are provided in [`tests/test_managed_identity.sh`](tests/test_managed_identity.sh). They use mocked IMDS responses and do **not** require live Azure credentials:
+Lightweight shell tests are provided in [`tests/test_managed_identity.sh`](tests/test_managed_identity.sh). They validate the auth-mode selection logic and do **not** require live Azure credentials:
 
 ```bash
 bash tests/test_managed_identity.sh
