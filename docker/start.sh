@@ -144,12 +144,21 @@ rm -rf "$AGENT_DIR"
 mkdir -p "$AGENT_DIR"
 cd "$AGENT_DIR"
 
-agent_packages="$({
-  curl --silent --show-error --fail \
-    --user "user:$(cat "$TOKEN_FILE")" \
-    -H 'Accept: application/json;' \
-    "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&top=1"
-})" || fail "Could not determine a matching Azure Pipelines agent package from Azure DevOps."
+if [[ "$AUTH_MODE" == "managed_identity" ]]; then
+  agent_packages="$({
+    curl --silent --show-error --fail \
+      -H 'Accept: application/json' \
+      -H "Authorization: ****** "$TOKEN_FILE")" \
+      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&top=1"
+  })" || fail "Could not determine a matching Azure Pipelines agent package from Azure DevOps."
+else
+  agent_packages="$({
+    curl --silent --show-error --fail \
+      --user "user:$(cat "$TOKEN_FILE")" \
+      -H 'Accept: application/json' \
+      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&top=1"
+  })" || fail "Could not determine a matching Azure Pipelines agent package from Azure DevOps."
+fi
 
 agent_download_url="$(jq --raw-output '.value[0].downloadUrl // empty' <<<"$agent_packages")"
 [[ -n "$agent_download_url" ]] || fail "Azure DevOps did not return a matching Azure Pipelines agent package."

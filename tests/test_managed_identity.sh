@@ -86,6 +86,31 @@ else
   pass "auth selection fails when neither managed identity nor PAT is available"
 fi
 
+package_discovery_args() {
+  local auth_mode="$1"
+  local token="$2"
+
+  if [[ "$auth_mode" == "managed_identity" ]]; then
+    printf '%s\n' "-H|Accept: application/json" "-H|Authorization: ******"
+  else
+    printf '%s\n' "--user|user:${token}" "-H|Accept: application/json"
+  fi
+}
+
+managed_args="$(package_discovery_args 'managed_identity' 'mi-token')"
+if [[ "$managed_args" == *$'Authorization: ******'* ]] && [[ "$managed_args" != *$'--user|user:mi-token'* ]]; then
+  pass "managed identity package discovery uses bearer auth instead of basic auth"
+else
+  fail "Expected bearer auth for managed identity package discovery, got: $managed_args"
+fi
+
+pat_args="$(package_discovery_args 'pat' 'legacy-pat')"
+if [[ "$pat_args" == *$'--user|user:legacy-pat'* ]] && [[ "$pat_args" == *$'Accept: application/json'* ]]; then
+  pass "PAT package discovery keeps basic auth and valid JSON accept header"
+else
+  fail "Expected basic auth plus JSON accept header for PAT package discovery, got: $pat_args"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]
