@@ -11,7 +11,9 @@ AZP_AGENT_NAME="${AZP_AGENT_NAME:-$(hostname)}"
 AGENT_ROOT="/azp"
 AGENT_DIR="${AGENT_ROOT}/agent"
 TOKEN_FILE="${AGENT_ROOT}/.token"
+INPUT_TOKEN_FILE="${AZP_TOKEN_FILE:-}"
 AUTH_MODE=""
+CLEANUP_STARTED=false
 
 AZDO_RESOURCE="499b84ac-1321-427f-aa17-267ca6975798"
 IMDS_API_VERSION="2019-08-01"
@@ -62,13 +64,19 @@ remove_token_file() {
 
 remove_agent() {
   local token="${1:-}"
+  local refreshed_token=""
 
   if [[ ! -x "${AGENT_DIR}/config.sh" ]]; then
     return 0
   fi
 
-  if [[ -z "$token" && "$AUTH_MODE" == "managed_identity" ]]; then
-    token="$(get_azdo_managed_identity_token 2>/dev/null || true)"
+  # A token saved at startup may have expired while the agent was running.
+  # Prefer a newly acquired managed-identity token during deregistration.
+  if [[ "$AUTH_MODE" == "managed_identity" ]]; then
+    refreshed_token="$(get_azdo_managed_identity_token 2>/dev/null || true)"
+    if [[ -n "$refreshed_token" ]]; then
+      token="$refreshed_token"
+    fi
   fi
 
   if [[ -z "$token" ]]; then
@@ -84,18 +92,23 @@ cleanup() {
   local exit_code="${1:-$?}"
   local cleanup_token=""
 
+  [[ "$CLEANUP_STARTED" == "true" ]] && return 0
+  CLEANUP_STARTED=true
+  trap - EXIT INT TERM
+
   if [[ -f "$TOKEN_FILE" ]]; then
-    cleanup_token="$(cat "$TOKEN_FILE" 2>/dev/null || true)"
+    cleanup_token="$(<"$TOKEN_FILE")"
   fi
 
-  remove_token_file
   remove_agent "$cleanup_token"
+  remove_token_file
 
-  exit "$exit_code"
+  return "$exit_code"
 }
 
-trap 'cleanup 130' INT
-trap 'cleanup 143' TERM
+trap 'cleanup $?' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 export VSO_AGENT_IGNORE=AZP_TOKEN,AZP_TOKEN_FILE
 
@@ -106,6 +119,11 @@ if managed_identity_token="$(get_azdo_managed_identity_token 2>/dev/null)"; then
   write_token_file "$managed_identity_token"
   unset managed_identity_token
   echo "Managed identity token acquired successfully."
+elif [[ -n "$INPUT_TOKEN_FILE" ]]; then
+  [[ -r "$INPUT_TOKEN_FILE" ]] || fail "AZP_TOKEN_FILE is set but is not readable: $INPUT_TOKEN_FILE"
+  AUTH_MODE="pat"
+  write_token_file "$(<"$INPUT_TOKEN_FILE")"
+  echo "Managed identity unavailable; using AZP_TOKEN_FILE fallback."
 else
   if [[ -n "${AZP_TOKEN:-}" ]]; then
     AUTH_MODE="pat"
@@ -122,6 +140,8 @@ Ensure that:
   - AZP_TOKEN is deliberately provided as a legacy fallback."
   fi
 fi
+
+AZP_URL="${AZP_URL%/}"
 
 print_header "2. Determining matching Azure Pipelines agent..."
 
@@ -140,6 +160,11 @@ case "$(uname -m)" in
     ;;
 esac
 
+if [[ -x "${AGENT_DIR}/config.sh" ]]; then
+  print_header "Removing existing local Azure Pipelines agent configuration..."
+  remove_agent
+fi
+
 rm -rf "$AGENT_DIR"
 mkdir -p "$AGENT_DIR"
 cd "$AGENT_DIR"
@@ -148,15 +173,15 @@ if [[ "$AUTH_MODE" == "managed_identity" ]]; then
   agent_packages="$({
     curl --silent --show-error --fail \
       -H 'Accept: application/json' \
-      -H "Authorization: ****** "$TOKEN_FILE")" \
-      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&top=1"
+      -H "Authorization: Bearer $(<"$TOKEN_FILE")" \
+      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&%24top=1&api-version=7.1"
   })" || fail "Could not determine a matching Azure Pipelines agent package from Azure DevOps."
 else
   agent_packages="$({
     curl --silent --show-error --fail \
-      --user "user:$(cat "$TOKEN_FILE")" \
+      --user "user:$(<"$TOKEN_FILE")" \
       -H 'Accept: application/json' \
-      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&top=1"
+      "$AZP_URL/_apis/distributedtask/packages/agent?platform=${agent_platform}&%24top=1&api-version=7.1"
   })" || fail "Could not determine a matching Azure Pipelines agent package from Azure DevOps."
 fi
 
@@ -175,21 +200,17 @@ print_header "4. Configuring Azure Pipelines agent..."
   --agent "$AZP_AGENT_NAME" \
   --url "$AZP_URL" \
   --auth PAT \
-  --token "$(cat "$TOKEN_FILE")" \
+  --token "$(<"$TOKEN_FILE")" \
   --pool "$AZP_POOL" \
   --work "$AZP_WORK" \
   --replace \
   --acceptTeeEula
 
-remove_token_file
-
 print_header "5. Running Azure Pipelines agent..."
 
 if [[ "$AZP_AGENT_ONCE" == "true" ]]; then
-  ./run.sh --once
-  remove_agent
+  ./run.sh --once || true
   exit 0
 fi
 
-trap 'cleanup 0' EXIT
 ./run.sh "$@"
